@@ -191,7 +191,6 @@ export function WebcamClassifier() {
       </div>
 
       {/* Видео с камеры */}
-      {cameraEnabled && (
         <div className="video-container">
           <video
             ref={videoRef}
@@ -213,7 +212,6 @@ export function WebcamClassifier() {
             </button>
           </div>
         </div>
-      )}
 
       {/* Результаты классификации */}
       {predictions.length > 0 && (
