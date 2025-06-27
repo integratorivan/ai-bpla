@@ -19,6 +19,7 @@ export function WebcamClassifier() {
   // Переменные для ml5.js
   const [classifier, setClassifier] = useState<any>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null)
   
   // Загрузка модели MobileNet
   useEffect(() => {
@@ -34,10 +35,32 @@ export function WebcamClassifier() {
     }
   }, [modelLoaded])
 
+  // Функция для запроса разрешения на камеру
+  const requestCameraPermission = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('MediaDevices API не поддерживается. Попробуйте HTTPS или другой браузер.')
+      }
+
+      const tempStream = await navigator.mediaDevices.getUserMedia({ video: true })
+      tempStream.getTracks().forEach(track => track.stop()) // Сразу останавливаем
+      setPermissionGranted(true)
+      console.log('✅ Разрешение на камеру получено')
+    } catch (error) {
+      setPermissionGranted(false)
+      console.error('❌ Разрешение на камеру отклонено:', error)
+    }
+  }
+
   // Функция для получения доступа к камере
   const enableCamera = async () => {
     try {
       console.log('📹 Запрашиваем доступ к камере...')
+      
+      // Проверяем поддержку MediaDevices API
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('MediaDevices API не поддерживается. Попробуйте HTTPS или другой браузер.')
+      }
       
       // navigator.mediaDevices.getUserMedia - стандартный веб API для доступа к камере
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -47,15 +70,28 @@ export function WebcamClassifier() {
           facingMode: 'user' // 'user' = фронтальная камера, 'environment' = задняя
         }
       })
+
+      console.log('📹 MediaStream получен:', mediaStream)
+      console.log('📹 Video tracks:', mediaStream.getVideoTracks())
       
       setStream(mediaStream)
       
       // Подключаем поток к video элементу
       if (videoRef.current) {
+        console.log('📹 Подключаем поток к video элементу')
         videoRef.current.srcObject = mediaStream
+        
+        // Ждем загрузки метаданных
+        videoRef.current.onloadedmetadata = () => {
+          console.log('📹 Метаданные видео загружены')
+          console.log('📹 Размеры видео:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight)
+        }
+        
         videoRef.current.play()
         setCameraEnabled(true)
         console.log('✅ Камера включена!')
+      } else {
+        console.error('❌ videoRef.current is null')
       }
     } catch (error) {
       console.error('❌ Ошибка доступа к камере:', error)
@@ -121,7 +157,22 @@ export function WebcamClassifier() {
 
       {/* Управление камерой */}
       <div className="camera-controls">
-        {!cameraEnabled ? (
+        {permissionGranted === null ? (
+          <button 
+            onClick={requestCameraPermission}
+            disabled={!modelLoaded}
+            className="btn-primary"
+          >
+            📋 Запросить доступ к камере
+          </button>
+        ) : permissionGranted === false ? (
+          <div>
+            <p>❌ Доступ к камере отклонен</p>
+            <button onClick={requestCameraPermission} className="btn-primary">
+              🔄 Повторить запрос
+            </button>
+          </div>
+        ) : !cameraEnabled ? (
           <button 
             onClick={enableCamera} 
             disabled={!modelLoaded}
