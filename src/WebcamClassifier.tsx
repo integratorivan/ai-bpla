@@ -20,6 +20,8 @@ export function WebcamClassifier() {
   const [classifier, setClassifier] = useState<any>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null)
+  const [streamUrl, setStreamUrl] = useState('')
+  const [isStreamMode, setIsStreamMode] = useState(false)
   
   // Загрузка модели MobileNet
   useEffect(() => {
@@ -114,24 +116,70 @@ export function WebcamClassifier() {
   }
 
   // Функция для классификации текущего кадра
-  const classifyFrame = () => {
+  const classifyFrame = async () => {
     if (!classifier || !videoRef.current || !cameraEnabled) return
+    
+    // Проверяем, что видео готово
+    if (videoRef.current.readyState < 2) {
+      console.log('⏳ Видео еще не готово для анализа')
+      return
+    }
     
     setIsAnalyzing(true)
     
-    // ml5.js анализирует video элемент напрямую
-    classifier.classify(videoRef.current, (error: any, results: Prediction[]) => {
-      setIsAnalyzing(false)
+    // Захватываем кадр из видео в canvas
+    if (canvasRef.current) {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      const video = videoRef.current
       
-      if (error) {
-        console.error('❌ Ошибка классификации:', error)
-        return
+      // Устанавливаем размеры canvas по размеру видео
+      canvas.width = video.videoWidth || 640
+      canvas.height = video.videoHeight || 480
+      
+      // Рисуем текущий кадр видео на canvas
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height)
+      
+      console.log('📸 Кадр захвачен, анализируем...')
+      
+      try {
+        // Пробуем async/await подход
+        const results = await classifier.classify(canvas)
+        setIsAnalyzing(false)
+        console.log('📋 Результат (async):', results)
+        
+        if (results && Array.isArray(results)) {
+          const formattedResults = results.map((result: any) => ({
+            label: result.label || result.className || 'Unknown',
+            confidence: result.confidence || result.probability || 0
+          }))
+          setPredictions(formattedResults)
+          console.log('✅ Отформатированные результаты:', formattedResults)
+        } else {
+          console.error('❌ Неожиданный формат результатов:', results)
+        }
+      } catch (error) {
+        setIsAnalyzing(false)
+        console.error('❌ Ошибка async классификации:', error)
+        
+        // Fallback: пробуем callback подход
+        classifier.classify(canvas, (err: any, results: Prediction[]) => {
+          console.log('📋 Результат (callback):', results, 'Ошибка:', err)
+          
+          if (results && Array.isArray(results)) {
+            const formattedResults = results.map((result: any) => ({
+              label: result.label || result.className || 'Unknown',
+              confidence: result.confidence || result.probability || 0
+            }))
+            setPredictions(formattedResults)
+            console.log('✅ Отформатированные результаты (callback):', formattedResults)
+          }
+        })
       }
-      
-      // results - массив объектов с label и confidence
-      console.log('🔍 Результаты классификации:', results)
-      setPredictions(results)
-    })
+    } else {
+      setIsAnalyzing(false)
+      console.error('❌ Canvas не найден')
+    }
   }
 
   // Автоматическая классификация каждые 2 секунды
@@ -145,14 +193,96 @@ export function WebcamClassifier() {
     return () => clearInterval(interval)
   }, [cameraEnabled, modelLoaded, classifier])
 
+  // Функция для загрузки видео
+  const loadStream = () => {
+    console.log('🔄 Загружаем видео:', streamUrl)
+    if (!streamUrl) {
+      console.error('❌ URL видео пустой')
+      return
+    }
+    
+    // Сначала показываем контейнер видео
+    setCameraEnabled(true)
+    setIsStreamMode(true)
+    
+    // Даем время на рендер, затем настраиваем видео
+    setTimeout(() => {
+      if (videoRef.current) {
+      console.log('📹 Настройка video элемента')
+      videoRef.current.src = streamUrl
+      videoRef.current.crossOrigin = 'anonymous'
+      
+      // Добавляем обработчики событий
+      videoRef.current.onloadstart = () => console.log('📹 Начинаем загрузку видео')
+      videoRef.current.onloadedmetadata = () => {
+        console.log('📹 Метаданные загружены')
+        console.log('📹 Размеры:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight)
+      }
+      videoRef.current.oncanplay = () => console.log('📹 Видео готово к воспроизведению')
+      videoRef.current.onerror = (e) => console.error('❌ Ошибка загрузки видео:', e)
+      
+      videoRef.current.load()
+      videoRef.current.play().then(() => {
+        console.log('✅ Видео запущено успешно')
+      }).catch(error => {
+        console.error('❌ Ошибка воспроизведения:', error)
+      })
+      } else {
+        console.error('❌ videoRef.current is null после таймаута')
+      }
+    }, 100)
+  }
+
+
+  // Функция для остановки стрима
+  const stopStream = () => {
+    if (videoRef.current) {
+      videoRef.current.src = ''
+      videoRef.current.srcObject = null
+    }
+    setCameraEnabled(false)
+    setIsStreamMode(false)
+    console.log('📺 Видео остановлено')
+  }
+
   return (
     <div className="webcam-classifier">
-      <h2>📸 Распознавание объектов через веб-камеру</h2>
+      <h2>📸 Распознавание объектов через веб-камеру или стрим</h2>
       
       {/* Статус модели */}
       <div className="status">
         {!modelLoaded && <p>⏳ Загружаем модель MobileNet...</p>}
         {modelLoaded && <p>✅ Модель готова к работе</p>}
+      </div>
+
+      {/* Выбор источника видео */}
+      <div className="source-selector">
+        <h3>Выберите источник видео:</h3>
+        
+        {/* Стрим URL */}
+        <div className="stream-controls">
+          <input
+            type="text"
+            placeholder="Вставьте ссылку на видео (.mp4, .webm, .mov)"
+            value={streamUrl}
+            onChange={(e) => setStreamUrl(e.target.value)}
+            className="stream-input"
+          />
+          <button 
+            onClick={loadStream}
+            disabled={!modelLoaded || !streamUrl}
+            className="btn-primary"
+          >
+            📺 Загрузить видео
+          </button>
+          {isStreamMode && (
+            <button onClick={stopStream} className="btn-secondary">
+              ⏹️ Остановить видео
+            </button>
+          )}
+        </div>
+        
+        <div className="separator">или</div>
       </div>
 
       {/* Управление камерой */}
@@ -191,6 +321,7 @@ export function WebcamClassifier() {
       </div>
 
       {/* Видео с камеры */}
+      {cameraEnabled && (
         <div className="video-container">
           <video
             ref={videoRef}
@@ -199,6 +330,13 @@ export function WebcamClassifier() {
             autoPlay
             muted
             playsInline
+            controls
+          />
+          
+          {/* Скрытый canvas для захвата кадров */}
+          <canvas
+            ref={canvasRef}
+            style={{ display: 'none' }}
           />
           
           {/* Ручная классификация */}
@@ -212,6 +350,7 @@ export function WebcamClassifier() {
             </button>
           </div>
         </div>
+      )}
 
       {/* Результаты классификации */}
       {predictions.length > 0 && (
