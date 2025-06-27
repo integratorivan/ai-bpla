@@ -1,0 +1,61 @@
+import { useState, useEffect } from 'preact/hooks'
+import { WebcamClassifier } from './WebcamClassifier'
+import './app.css'
+
+export function App() {
+  const [ml5Ready, setMl5Ready] = useState(false)
+  const [ml5Version, setMl5Version] = useState('')
+
+  useEffect(() => {
+    // Проверяем, что ml5 загружен
+    const checkMl5 = () => {
+      if (typeof ml5 !== 'undefined') {
+        setMl5Ready(true)
+        setMl5Version(ml5.version)
+        console.log('ml5.js загружен! Версия:', ml5.version)
+      } else {
+        // Если ml5 ещё не загружен, проверяем снова через 100ms
+        setTimeout(checkMl5, 100)
+      }
+    }
+    
+    checkMl5()
+  }, [])
+
+  return (
+    <>
+      <div>
+        <h1>🤖 Изучение ML5.js</h1>
+        <h2>Vite + Preact + TypeScript</h2>
+      </div>
+      
+      <div class="card">
+        {ml5Ready ? (
+          <div>
+            <h3>✅ ML5.js готов к работе!</h3>
+            <p>Версия: <strong>{ml5Version}</strong></p>
+            <p>Библиотека успешно загружена и готова для создания ML приложений</p>
+          </div>
+        ) : (
+          <div>
+            <h3>⏳ Загрузка ML5.js...</h3>
+            <p>Ожидаем загрузки библиотеки машинного обучения</p>
+          </div>
+        )}
+      </div>
+
+      {/* Компонент для работы с веб-камерой */}
+      {ml5Ready && <WebcamClassifier />}
+
+      <div class="info">
+        <h3>🎯 Что мы изучаем:</h3>
+        <ul>
+          <li>✅ <strong>Классификация изображений</strong> - MobileNet через веб-камеру</li>
+          <li>🔄 Распознавание объектов - YOLO/COCO-SSD</li>
+          <li>🔄 Генерация текста - GPT-2</li>
+          <li>🔄 Работа с звуком - анализ звука</li>
+        </ul>
+      </div>
+    </>
+  )
+}
