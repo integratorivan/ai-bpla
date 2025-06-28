@@ -1,4 +1,4 @@
-import { useRef } from 'preact/hooks'
+import { useRef, useEffect } from 'preact/hooks'
 
 // Хуки
 import { useModel, useCamera, useStream, usePredictions, useAutoClassification } from './hooks'
@@ -9,7 +9,10 @@ import {
   StreamControls, 
   CameraControls, 
   VideoDisplay, 
-  PredictionsDisplay 
+  PredictionsDisplay,
+  FileUpload,
+  ModelSelector,
+  DetectionDisplay
 } from './components'
 
 export function WebcamClassifier() {
@@ -23,97 +26,134 @@ export function WebcamClassifier() {
   const stream = useStream()
   const predictions = usePredictions()
 
-  // Функция для классификации с привязкой к текущему состоянию
-  const handleClassifyFrame = async () => {
-    await predictions.classifyFrame(
-      model.classifier,
-      videoRef,
-      canvasRef,
-      camera.cameraState.enabled || stream.streamState.isStreamMode
-    )
+  // Инициализация модели при первом запуске
+  useEffect(() => {
+    model.initialize()
+  }, [])
+
+  // Функция для анализа в зависимости от типа модели
+  const handleAnalyze = async () => {
+    if (model.modelType === 'coco-ssd' && model.tensorflowModel) {
+      // Детекция объектов с COCO-SSD (рекомендуется)
+      await predictions.detectObjectsCocoSSD(model.tensorflowModel, videoRef, canvasRef)
+    } else if (model.modelType === 'yolo' && model.tensorflowModel) {
+      // Детекция объектов с YOLO (экспериментально)
+      await predictions.detectObjects(model.tensorflowModel, videoRef, canvasRef)
+    } else if (model.modelType === 'mobilenet' && model.classifier) {
+      // Классификация с MobileNet
+      await predictions.classifyFrame(model.classifier, videoRef, canvasRef)
+    }
   }
 
-  // Автоматическая классификация
+  // Автоматический анализ каждые 2 секунды
   useAutoClassification(
-    camera.cameraState.enabled || stream.streamState.isStreamMode,
-    model.loaded,
-    handleClassifyFrame
+    camera.cameraState.enabled || stream.streamState.isStreamMode || stream.streamState.isFileMode, 
+    model.loaded, 
+    handleAnalyze, 
+    2000
   )
 
-  // Обработчики событий для камеры
-  const handleEnableCamera = async () => {
-    await camera.enableCamera(videoRef)
-    if (stream.streamState.isStreamMode) {
-      stream.stopStream(videoRef)
-    }
-    predictions.clearPredictions()
-  }
-
-  const handleDisableCamera = () => {
-    camera.disableCamera()
-    predictions.clearPredictions()
-  }
-
-  // Обработчики событий для стрима
-  const handleLoadStream = () => {
-    stream.loadStream(videoRef)
-    if (camera.cameraState.enabled) {
-      camera.disableCamera()
-    }
-    predictions.clearPredictions()
-  }
-
-  const handleStopStream = () => {
-    stream.stopStream(videoRef)
-    predictions.clearPredictions()
-  }
-
   return (
-    <div className="webcam-classifier">
-      <h2>📸 Распознавание объектов через веб-камеру или стрим</h2>
+    <div class="webcam-classifier">
+      <h1>🎥 Анализатор видео с ИИ</h1>
       
-      {/* Статус модели */}
-      <ModelStatus modelLoaded={model.loaded} />
-
-      {/* Выбор источника видео */}
-      <div className="source-selector">
-        <h3>Выберите источник видео:</h3>
-        
-        {/* Стрим URL */}
-        <StreamControls
-          streamState={stream.streamState}
-          modelLoaded={model.loaded}
-          onUrlChange={stream.setUrl}
-          onLoadStream={handleLoadStream}
-          onStopStream={handleStopStream}
+      {/* Выбор модели ИИ */}
+      <div class="card">
+        <ModelSelector 
+          modelState={model}
+          onSwitchModel={model.switchModel}
+          disabled={predictions.isAnalyzing}
         />
-        
-        <div className="separator">или</div>
       </div>
 
-      {/* Управление камерой */}
-      <div className="camera-controls">
+      {/* Выбор источника видео */}
+      <div class="card source-selector">
+        <h3>📹 Источник видео</h3>
+        
+        {/* Элементы управления камерой */}
         <CameraControls
           cameraState={camera.cameraState}
           modelLoaded={model.loaded}
           onRequestPermission={camera.requestPermission}
-          onEnableCamera={handleEnableCamera}
-          onDisableCamera={handleDisableCamera}
+          onEnableCamera={() => camera.enableCamera(videoRef)}
+          onDisableCamera={camera.disableCamera}
+        />
+
+        {/* Элементы управления стримом */}
+        <StreamControls
+          streamState={stream.streamState}
+          modelLoaded={model.loaded}
+          onLoadStream={() => stream.loadStream(videoRef)}
+          onStopStream={() => stream.stopStream(videoRef)}
+          onUrlChange={stream.setUrl}
+        />
+
+        {/* Загрузка файлов */}
+        <FileUpload 
+          streamState={stream.streamState}
+          modelLoaded={model.loaded}
+          onFileLoad={(file) => stream.loadFile(videoRef, file)}
+          onStopStream={() => stream.stopStream(videoRef)}
         />
       </div>
 
-      {/* Видео с камеры */}
-      <VideoDisplay
-        cameraEnabled={camera.cameraState.enabled || stream.streamState.isStreamMode}
-        isAnalyzing={predictions.analysisState.isAnalyzing}
-        modelLoaded={model.loaded}
-        onClassifyFrame={handleClassifyFrame}
-        videoRef={videoRef}
-        canvasRef={canvasRef}
-      />
+      {/* Видео дисплей */}
+      <div class="card video-section">
+        <VideoDisplay 
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          cameraEnabled={camera.cameraState.enabled || stream.streamState.isStreamMode || stream.streamState.isFileMode}
+          onClassifyFrame={handleAnalyze}
+          isAnalyzing={predictions.isAnalyzing}
+          modelLoaded={model.loaded}
+        />
+      </div>
 
-      {/* Результаты классификации */}
-      <PredictionsDisplay predictions={predictions.analysisState.predictions} />
+      {/* Результаты анализа */}
+      <div class="results-section">
+        {/* Классификация (MobileNet) */}
+        {model.modelType === 'mobilenet' && predictions.predictions.length > 0 && (
+          <div class="card">
+            <PredictionsDisplay 
+              predictions={predictions.predictions}
+            />
+          </div>
+        )}
+
+        {/* Детекция объектов (YOLO/COCO-SSD) */}
+        {(model.modelType === 'yolo' || model.modelType === 'coco-ssd') && (
+          <div class="card">
+            <DetectionDisplay 
+              detections={predictions.detections}
+              videoRef={videoRef}
+              isAnalyzing={predictions.isAnalyzing}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Информация о статусе */}
+      <div class="info">
+        <h3>ℹ️ Информация о системе</h3>
+        <ul>
+          <li><strong>🤖 Модель:</strong> {
+            model.modelType === 'coco-ssd' ? 'COCO-SSD (Детекция объектов)' :
+            model.modelType === 'yolo' ? 'YOLO (Детекция объектов)' : 
+            'MobileNet (Классификация)'
+          }</li>
+          <li><strong>📡 Статус модели:</strong> {model.loaded ? '✅ Загружена' : '⏳ Загружается...'}</li>
+          <li><strong>📹 Камера:</strong> {camera.cameraState.enabled ? '🟢 Включена' : '🔴 Выключена'}</li>
+          <li><strong>🌐 Стрим:</strong> {stream.streamState.isStreamMode ? '🟢 Активен' : '🔴 Неактивен'}</li>
+          <li><strong>📁 Файл:</strong> {stream.streamState.isFileMode ? `🟢 ${stream.streamState.fileName}` : '🔴 Не загружен'}</li>
+          <li><strong>🔍 Анализ:</strong> {predictions.isAnalyzing ? '⏳ В процессе...' : '✅ Готов'}</li>
+          {(model.modelType === 'yolo' || model.modelType === 'coco-ssd') && (
+            <li><strong>🎯 Обнаружено объектов:</strong> {predictions.detections.length}</li>
+          )}
+          {model.modelType === 'mobilenet' && (
+            <li><strong>📊 Результатов классификации:</strong> {predictions.predictions.length}</li>
+          )}
+        </ul>
+      </div>
     </div>
   )
 } 

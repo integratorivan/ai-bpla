@@ -13,6 +13,21 @@ declare global {
   }
 }
 
+// Типы для TensorFlow.js
+export interface TensorFlowModel {
+  net: any
+  inputShape: number[]
+  outputShape: number[]
+  modelType: 'classification' | 'detection'
+}
+
+export interface Detection {
+  bbox: [number, number, number, number] // [x, y, width, height]
+  class: string
+  classId: number
+  confidence: number
+}
+
 export interface Prediction {
   label: string
   confidence: number
@@ -27,14 +42,25 @@ export interface CameraState {
 export interface ModelState {
   loaded: boolean
   classifier: any
+  tensorflowModel?: TensorFlowModel
+  modelType: 'mobilenet' | 'yolo' | 'coco-ssd'
 }
 
 export interface StreamState {
   url: string
   isStreamMode: boolean
+  isFileMode: boolean
+  currentFile: File | null
+  fileName: string
 }
 
 export interface AnalysisState {
   isAnalyzing: boolean
   predictions: Prediction[]
+  detections: Detection[]
+}
+
+export interface DragState {
+  isDragOver: boolean
+  isDragActive: boolean
 } 
