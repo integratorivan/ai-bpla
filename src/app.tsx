@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks'
-import { WebcamClassifier } from './WebcamClassifier'
+import { WebcamClassifier } from './WebcamClassifier.refactored'
 import './app.css'
 
 export function App() {
