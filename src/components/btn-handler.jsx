@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState, useRef } from "react";
 import { Webcam } from "../utils/webcam";
 
 const ButtonHandler = ({ imageRef, cameraRef, videoRef, streaming, setStreaming }) => {
