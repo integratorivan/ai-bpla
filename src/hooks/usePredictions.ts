@@ -1,13 +1,17 @@
 import { useState, useCallback, useEffect } from 'preact/hooks'
-import type { AnalysisState, Prediction, Detection, TensorFlowModel } from '../types/ml5'
+import type { PredictionState, Prediction, Detection, TensorFlowModel, ModelState, YOLOv8Detection } from '../types/ml5'
 import { YOLO_CLASSES } from '../constants'
+import { runYOLOv8Inference } from '../utils/yolov8'
 import * as tf from '@tensorflow/tfjs'
 
 export function usePredictions() {
-  const [analysisState, setAnalysisState] = useState<AnalysisState>({
+  const [analysisState, setAnalysisState] = useState<PredictionState>({
+    isClassifying: false,
     isAnalyzing: false,
     predictions: [],
-    detections: []
+    detections: [],
+    yolov8Detections: [],
+    lastClassified: null
   })
 
   // Оптимизированная предобработка изображения для YOLO
@@ -146,40 +150,7 @@ export function usePredictions() {
     return intersection_area / union_area
   }, [])
 
-  // Классификация с MobileNet (ml5.js)
-  const classifyFrame = useCallback(async (
-    classifier: any,
-    videoRef: { current: HTMLVideoElement | null },
-    canvasRef: { current: HTMLCanvasElement | null }
-  ) => {
-    if (!classifier || !videoRef.current) {
-      console.log('⚠️ Classifier или видео не готов')
-      return
-    }
-
-    setAnalysisState(prev => ({ ...prev, isAnalyzing: true }))
-
-    try {
-      const results = await classifier.classify(videoRef.current)
-      console.log('🔍 Результаты классификации MobileNet:', results)
-
-      const predictions: Prediction[] = results.map((result: any) => ({
-        label: result.label,
-        confidence: Math.round(result.confidence * 100)
-      }))
-
-      setAnalysisState(prev => ({
-        ...prev,
-        isAnalyzing: false,
-        predictions,
-        detections: [] // Очищаем детекции при классификации
-      }))
-
-    } catch (error) {
-      console.error('❌ Ошибка классификации:', error)
-      setAnalysisState(prev => ({ ...prev, isAnalyzing: false }))
-    }
-  }, [])
+  // Убрана классификация с MobileNet - используем только детекцию объектов
 
   // Детекция объектов с COCO-SSD (TensorFlow.js)
   const detectObjectsCocoSSD = useCallback(async (
@@ -192,7 +163,7 @@ export function usePredictions() {
       return
     }
 
-    setAnalysisState(prev => ({ ...prev, isAnalyzing: true }))
+    setAnalysisState(prev => ({ ...prev, isClassifying: true }))
 
     try {
       console.log('🔍 Запускаем детекцию объектов COCO-SSD...')
@@ -218,14 +189,15 @@ export function usePredictions() {
 
       setAnalysisState(prev => ({
         ...prev,
-        isAnalyzing: false,
+        isClassifying: false,
         predictions: [], // Очищаем классификации при детекции
-        detections
+        detections,
+        lastClassified: new Date()
       }))
 
     } catch (error) {
       console.error('❌ Ошибка детекции COCO-SSD:', error)
-      setAnalysisState(prev => ({ ...prev, isAnalyzing: false }))
+      setAnalysisState(prev => ({ ...prev, isClassifying: false }))
     }
   }, [])
 
@@ -240,7 +212,7 @@ export function usePredictions() {
       return
     }
 
-    setAnalysisState(prev => ({ ...prev, isAnalyzing: true }))
+    setAnalysisState(prev => ({ ...prev, isClassifying: true }))
 
     try {
       console.log('🔍 Запускаем детекцию объектов YOLO...')
@@ -259,9 +231,10 @@ export function usePredictions() {
 
       setAnalysisState(prev => ({
         ...prev,
-        isAnalyzing: false,
+        isClassifying: false,
         predictions: [], // Очищаем классификации при детекции
-        detections
+        detections,
+        lastClassified: new Date()
       }))
 
       // Освобождаем память
@@ -270,38 +243,95 @@ export function usePredictions() {
 
     } catch (error) {
       console.error('❌ Ошибка детекции YOLO:', error)
-      setAnalysisState(prev => ({ ...prev, isAnalyzing: false }))
+      setAnalysisState(prev => ({ ...prev, isClassifying: false }))
     }
   }, [preprocessImage, postprocessYOLO])
 
+  // Детекция объектов с YOLOv8 (ONNX.js)
+  const detectObjectsYOLOv8 = useCallback(async (
+    modelState: ModelState,
+    videoRef: { current: HTMLVideoElement | null },
+    canvasRef: { current: HTMLCanvasElement | null }
+  ) => {
+    if (!modelState.tensorflowModel || !videoRef.current || !modelState.yolov8Config) {
+      console.log('⚠️ YOLOv8 модель или видео не готов')
+      return
+    }
+
+    setAnalysisState(prev => ({ ...prev, isAnalyzing: true }))
+
+    try {
+      console.log('🔍 Запускаем детекцию объектов YOLOv8...')
+      
+      // Используем готовую функцию из utils/yolov8.ts
+      const yolov8Detections = await runYOLOv8Inference(
+        modelState.tensorflowModel,
+        videoRef.current,
+        modelState.yolov8Config
+      )
+      
+      // Конвертируем YOLOv8Detection в Detection для совместимости
+      const detections: Detection[] = yolov8Detections.map(detection => ({
+        bbox: detection.bbox,
+        class: detection.class,
+        classId: detection.classId,
+        confidence: detection.confidence
+      }))
+      
+      console.log('🎯 Обнаружено объектов YOLOv8:', yolov8Detections.length)
+      console.log('📊 Детекции:', yolov8Detections)
+
+      setAnalysisState(prev => ({
+        ...prev,
+        isAnalyzing: false,
+        isClassifying: false,
+        predictions: [], // Очищаем классификации при детекции
+        detections, // Обычные детекции для совместимости
+        yolov8Detections, // Специфичные YOLOv8 детекции
+        lastClassified: new Date()
+      }))
+
+    } catch (error) {
+      console.error('❌ Ошибка детекции YOLOv8:', error)
+      setAnalysisState(prev => ({ 
+        ...prev, 
+        isAnalyzing: false,
+        isClassifying: false
+      }))
+    }
+  }, [])
+
   const clearResults = useCallback(() => {
     setAnalysisState({
+      isClassifying: false,
       isAnalyzing: false,
       predictions: [],
-      detections: []
+      detections: [],
+      yolov8Detections: [],
+      lastClassified: null
     })
   }, [])
 
   return {
     ...analysisState,
-    classifyFrame,
     detectObjects,
     detectObjectsCocoSSD,
+    detectObjectsYOLOv8,
     clearResults
   }
 }
 
-// Хук для автоматической классификации
+// Хук для автоматической детекции
 export function useAutoClassification(
   enabled: boolean,
   modelLoaded: boolean,
-  classifyFrame: () => Promise<void>,
-  interval: number = 100 // Ускоряем до 500ms = 2 FPS
+  detectFrame: () => Promise<void>,
+  interval: number = 0 // Ускоряем до максимума для детекции
 ) {
   useEffect(() => {
     if (!enabled || !modelLoaded) return
     
-    const intervalId = setInterval(classifyFrame, interval)
+    const intervalId = setInterval(detectFrame, interval)
     return () => clearInterval(intervalId)
-  }, [enabled, modelLoaded, classifyFrame, interval])
+  }, [enabled, modelLoaded, detectFrame, interval])
 } 

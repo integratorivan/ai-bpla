@@ -1,13 +1,25 @@
-import type { Detection } from '../types/ml5'
+import type { Detection, YOLOv8Detection, ModelState } from '../types/ml5'
 
 interface DetectionStatsProps {
   detections: Detection[]
+  yolov8Detections?: YOLOv8Detection[]
   isAnalyzing: boolean
+  modelState?: ModelState
 }
 
-export function DetectionStats({ detections, isAnalyzing }: DetectionStatsProps) {
+export function DetectionStats({ 
+  detections, 
+  yolov8Detections, 
+  isAnalyzing, 
+  modelState 
+}: DetectionStatsProps) {
+  // Получаем актуальные детекции в зависимости от типа модели
+  const currentDetections = modelState?.modelType === 'yolov8' && yolov8Detections 
+    ? yolov8Detections 
+    : detections
+
   // Получаем статистику детекций
-  const detectionStats = detections.reduce((acc, detection) => {
+  const detectionStats = currentDetections.reduce((acc, detection) => {
     acc[detection.class] = (acc[detection.class] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -16,17 +28,29 @@ export function DetectionStats({ detections, isAnalyzing }: DetectionStatsProps)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10) // Показываем топ-10
 
+  // Определяем название модели для заголовка
+  const modelName = modelState?.modelType === 'yolov8' 
+    ? 'YOLOv8' 
+    : modelState?.modelType === 'coco-ssd' 
+    ? 'COCO-SSD' 
+    : 'YOLO'
+
   return (
     <div class="detection-display">
       <div class="detection-header">
-        <h3>🎯 Детекция объектов YOLO</h3>
+        <h3>🎯 Детекция объектов {modelName}</h3>
         {isAnalyzing && <div class="analyzing-indicator">⏳ Анализируем...</div>}
+        {modelState?.modelInfo && (
+          <div class="model-info-small">
+            <small>📊 {modelState.modelInfo.name}</small>
+          </div>
+        )}
       </div>
 
       {/* Статистика детекций */}
-      {detections.length > 0 ? (
+      {currentDetections.length > 0 ? (
         <div class="detection-stats">
-          <h4>📊 Обнаружено объектов: {detections.length}</h4>
+          <h4>📊 Обнаружено объектов: {currentDetections.length}</h4>
           <div class="stats-grid">
             {sortedStats.map(([className, count]) => (
               <div key={className} class="stat-item">
@@ -44,11 +68,11 @@ export function DetectionStats({ detections, isAnalyzing }: DetectionStatsProps)
       )}
 
       {/* Список всех детекций */}
-      {detections.length > 0 && (
+      {currentDetections.length > 0 && (
         <details class="detection-details">
-          <summary>🔍 Подробности детекций ({detections.length})</summary>
+          <summary>🔍 Подробности детекций ({currentDetections.length})</summary>
           <div class="detection-list">
-            {detections.map((detection, index) => (
+            {currentDetections.map((detection, index) => (
               <div key={index} class="detection-item">
                 <div class="detection-class">
                   {detection.class}
@@ -59,6 +83,12 @@ export function DetectionStats({ detections, isAnalyzing }: DetectionStatsProps)
                 <div class="detection-bbox">
                   [{detection.bbox.map(coord => Math.round(coord)).join(', ')}]
                 </div>
+                {/* Показываем дополнительную информацию для YOLOv8 */}
+                {modelState?.modelType === 'yolov8' && 'area' in detection && (
+                  <div class="detection-area">
+                    <small>Площадь: {Math.round(Number((detection as any).area) || 0)}</small>
+                  </div>
+                )}
               </div>
             ))}
           </div>

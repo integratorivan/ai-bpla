@@ -1,77 +1,84 @@
-import { useRef } from 'preact/hooks'
-import { ModelStatus, PredictionsDisplay } from '../components'
-import { useModel, usePredictions } from '../hooks'
-import type { Prediction } from '../types/ml5'
+import { ModelStatus } from '../components'
+import { useModel } from '../hooks'
 
-// Пример 1: Только статус модели
+// Пример простого статуса модели
 export function SimpleModelStatus() {
-  const model = useModel()
-  
+  const { modelState } = useModel()
+
   return (
     <div>
-      <h3>Простой индикатор модели</h3>
-      <ModelStatus modelLoaded={model.loaded} />
+      <h3>Статус модели</h3>
+      <ModelStatus modelState={modelState} />
     </div>
   )
 }
 
-// Пример 2: Только отображение результатов
-export function SimplePredictions() {
-  const mockPredictions: Prediction[] = [
-    { label: 'Cat', confidence: 0.89 },
-    { label: 'Dog', confidence: 0.76 },
-    { label: 'Bird', confidence: 0.43 }
-  ]
-  
+// Пример с кастомным классом
+export function CustomModelStatus() {
+  const { modelState } = useModel()
+
   return (
     <div>
-      <h3>Результаты распознавания</h3>
-      <PredictionsDisplay predictions={mockPredictions} />
+      <h3>Кастомный статус модели</h3>
+      <ModelStatus modelState={modelState} className="custom-status" />
     </div>
   )
 }
 
-// Пример 3: Минимальный классификатор только с камерой
-export function MinimalCameraClassifier() {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  
-  const model = useModel()
-  const predictions = usePredictions()
-  
-  const handleClassify = async () => {
-    await predictions.classifyFrame(
-      model.classifier,
-      videoRef,
-      canvasRef,
-      true // camera enabled
-    )
-  }
-  
+// Пример детальной информации о модели
+export function DetailedModelInfo() {
+  const { modelState } = useModel()
+
   return (
     <div>
-      <h3>Минимальный классификатор</h3>
-      <ModelStatus modelLoaded={model.loaded} />
+      <h3>Детальная информация о модели</h3>
+      <ModelStatus modelState={modelState} />
       
-      <video
-        ref={videoRef}
-        width="320"
-        height="240"
-        autoPlay
-        muted
-        playsInline
-      />
+      {modelState.loaded && (
+        <div className="model-details">
+          <p><strong>Тип модели:</strong> {modelState.modelType}</p>
+          {modelState.modelInfo && (
+            <>
+              <p><strong>Название:</strong> {modelState.modelInfo.name}</p>
+              <p><strong>Размер:</strong> {modelState.modelInfo.size}</p>
+              {modelState.modelInfo.accuracy && (
+                <p><strong>Точность:</strong> {modelState.modelInfo.accuracy}</p>
+              )}
+              {modelState.modelInfo.variant && (
+                <p><strong>Вариант:</strong> {modelState.modelInfo.variant}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Основной пример использования всех компонентов
+export function ComponentUsageExample() {
+  const { modelState } = useModel()
+
+  return (
+    <div className="component-usage-example">
+      <h2>Примеры использования компонентов</h2>
       
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <div className="example-section">
+        <SimpleModelStatus />
+      </div>
       
-      <button 
-        onClick={handleClassify}
-        disabled={!model.loaded || predictions.analysisState.isAnalyzing}
-      >
-        {predictions.analysisState.isAnalyzing ? 'Анализ...' : 'Анализировать'}
-      </button>
+      <div className="example-section">
+        <CustomModelStatus />
+      </div>
       
-      <PredictionsDisplay predictions={predictions.analysisState.predictions} />
+      <div className="example-section">
+        <DetailedModelInfo />
+      </div>
+      
+      <div className="example-section">
+        <h3>Статус с расширенной информацией</h3>
+        <ModelStatus modelState={modelState} className="enhanced-status" />
+      </div>
     </div>
   )
 } 

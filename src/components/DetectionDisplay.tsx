@@ -1,14 +1,28 @@
 import { useEffect, useRef } from 'preact/hooks'
-import type { Detection } from '../types/ml5'
+import type { Detection, YOLOv8Detection, ModelState } from '../types/ml5'
+import { DETECTION_COLORS } from '../constants'
 
 interface DetectionDisplayProps {
   detections: Detection[]
+  yolov8Detections?: YOLOv8Detection[]
   videoRef: { current: HTMLVideoElement | null }
   isAnalyzing: boolean
+  modelState?: ModelState
 }
 
-export function DetectionDisplay({ detections, videoRef, isAnalyzing }: DetectionDisplayProps) {
+export function DetectionDisplay({ 
+  detections, 
+  yolov8Detections, 
+  videoRef, 
+  isAnalyzing, 
+  modelState 
+}: DetectionDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Получаем актуальные детекции в зависимости от типа модели
+  const currentDetections = modelState?.modelType === 'yolov8' && yolov8Detections 
+    ? yolov8Detections 
+    : detections
 
   // Отрисовка bounding boxes на canvas
   useEffect(() => {
@@ -25,14 +39,14 @@ export function DetectionDisplay({ detections, videoRef, isAnalyzing }: Detectio
     // Очищаем canvas
     ctx?.clearRect(0, 0, canvas.width, canvas.height)
 
-    if (!ctx || detections.length === 0) return
+    if (!ctx || currentDetections.length === 0) return
 
     // Получаем коэффициенты масштабирования
     const scaleX = canvas.width / (video.videoWidth || canvas.width)
     const scaleY = canvas.height / (video.videoHeight || canvas.height)
 
     // Отрисовываем каждую детекцию
-    detections.forEach((detection, index) => {
+    currentDetections.forEach((detection, index) => {
       const [x, y, width, height] = detection.bbox
       
       // Масштабируем координаты
@@ -42,9 +56,9 @@ export function DetectionDisplay({ detections, videoRef, isAnalyzing }: Detectio
       const scaledHeight = height * scaleY
 
       // Выбираем цвет для bounding box (уникальный для каждого класса)
-      const hue = (detection.classId * 137) % 360
-      const color = `hsl(${hue}, 70%, 50%)`
-      const bgColor = `hsla(${hue}, 70%, 50%, 0.2)`
+      const colorIndex = detection.classId % DETECTION_COLORS.length
+      const color = DETECTION_COLORS[colorIndex] || `hsl(${(detection.classId * 137) % 360}, 70%, 50%)`
+      const bgColor = color.replace('rgb(', 'rgba(').replace(')', ', 0.2)')
 
       // Рисуем заливку
       ctx.fillStyle = bgColor
@@ -81,10 +95,10 @@ export function DetectionDisplay({ detections, videoRef, isAnalyzing }: Detectio
       ctx.fillStyle = '#fff'
       ctx.fillText(label, labelX + padding, labelY - padding)
     })
-  }, [detections, videoRef])
+  }, [currentDetections, videoRef])
 
   // Получаем статистику детекций
-  const detectionStats = detections.reduce((acc, detection) => {
+  const detectionStats = currentDetections.reduce((acc, detection) => {
     acc[detection.class] = (acc[detection.class] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -96,7 +110,7 @@ export function DetectionDisplay({ detections, videoRef, isAnalyzing }: Detectio
   return (
     <div class="detection-display">
       <div class="detection-header">
-        <h3>🎯 Детекция объектов YOLO</h3>
+        <h3>🎯 Детекция объектов {modelState?.modelType === 'yolov8' ? 'YOLOv8' : modelState?.modelType === 'coco-ssd' ? 'COCO-SSD' : 'YOLO'}</h3>
         {isAnalyzing && <div class="analyzing-indicator">⏳ Анализируем...</div>}
       </div>
 
@@ -116,9 +130,9 @@ export function DetectionDisplay({ detections, videoRef, isAnalyzing }: Detectio
       </div>
 
       {/* Статистика детекций */}
-      {detections.length > 0 ? (
+      {currentDetections.length > 0 ? (
         <div class="detection-stats">
-          <h4>📊 Обнаружено объектов: {detections.length}</h4>
+          <h4>📊 Обнаружено объектов: {currentDetections.length}</h4>
           <div class="stats-grid">
             {sortedStats.map(([className, count]) => (
               <div key={className} class="stat-item">
@@ -136,11 +150,11 @@ export function DetectionDisplay({ detections, videoRef, isAnalyzing }: Detectio
       )}
 
       {/* Список всех детекций */}
-      {detections.length > 0 && (
+      {currentDetections.length > 0 && (
         <details class="detection-details">
-          <summary>🔍 Подробности детекций ({detections.length})</summary>
+          <summary>🔍 Подробности детекций ({currentDetections.length})</summary>
           <div class="detection-list">
-            {detections.map((detection, index) => (
+            {currentDetections.map((detection, index) => (
               <div key={index} class="detection-item">
                 <div class="detection-class">
                   {detection.class}

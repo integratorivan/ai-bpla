@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'preact/hooks'
+import { useRef, useEffect, useState } from 'preact/hooks'
 
 // Хуки
 import { useModel, useCamera, useStream, usePredictions, useAutoClassification } from './hooks'
@@ -10,9 +10,9 @@ import {
   CameraControls, 
   VideoDisplay, 
   VideoWithOverlay,
-  PredictionsDisplay,
   FileUpload,
   ModelSelector,
+  DetectionControls,
   DetectionStats
 } from './components'
 
@@ -26,32 +26,32 @@ export function WebcamClassifier() {
   const camera = useCamera()
   const stream = useStream()
   const predictions = usePredictions()
-
-  // Инициализация модели при первом запуске
-  useEffect(() => {
-    model.initialize()
-  }, [])
+  
+  // Состояние для контроля детекции
+  const [detectionInterval, setDetectionInterval] = useState(500)
 
   // Функция для анализа в зависимости от типа модели
   const handleAnalyze = async () => {
-    if (model.modelType === 'coco-ssd' && model.tensorflowModel) {
+    if (model.modelState.modelType === 'coco-ssd' && model.modelState.tensorflowModel) {
       // Детекция объектов с COCO-SSD (рекомендуется)
-      await predictions.detectObjectsCocoSSD(model.tensorflowModel, videoRef, canvasRef)
-    } else if (model.modelType === 'yolo' && model.tensorflowModel) {
+      await predictions.detectObjectsCocoSSD(model.modelState.tensorflowModel, videoRef, canvasRef)
+    } else if (model.modelState.modelType === 'yolov8' && model.modelState.tensorflowModel) {
+      // Детекция объектов с YOLOv8 (новая версия)
+      await predictions.detectObjectsYOLOv8(model.modelState, videoRef, canvasRef)
+    } else if (model.modelState.modelType === 'yolo' && model.modelState.tensorflowModel) {
       // Детекция объектов с YOLO (экспериментально)
-      await predictions.detectObjects(model.tensorflowModel, videoRef, canvasRef)
-    } else if (model.modelType === 'mobilenet' && model.classifier) {
-      // Классификация с MobileNet
-      await predictions.classifyFrame(model.classifier, videoRef, canvasRef)
+      await predictions.detectObjects(model.modelState.tensorflowModel, videoRef, canvasRef)
+    } else {
+      console.log('⚠️ Неизвестный тип модели или модель не загружена')
     }
   }
 
-  // Автоматический анализ каждые 2 секунды
+  // Автоматическая детекция объектов
   useAutoClassification(
-    camera.cameraState.enabled || stream.streamState.isStreamMode || stream.streamState.isFileMode, 
-    model.loaded, 
+    camera.cameraState.isActive || stream.streamState.isStreamMode || stream.streamState.isFileMode, 
+    model.modelState.loaded, 
     handleAnalyze, 
-    300
+    detectionInterval
   )
 
   return (
@@ -59,9 +59,27 @@ export function WebcamClassifier() {
       {/* Выбор модели ИИ */}
       <div class="card">
         <ModelSelector 
-          modelState={model}
+          modelState={model.modelState}
           onSwitchModel={model.switchModel}
-          disabled={predictions.isAnalyzing}
+        />
+      </div>
+
+      {/* Статус модели с прогрессом загрузки */}
+      <div class="card">
+        <ModelStatus 
+          modelState={model.modelState}
+          loadingProgress={model.loadingProgress}
+        />
+      </div>
+
+      {/* Настройки детекции */}
+      <div class="card">
+        <DetectionControls
+          isAnalyzing={predictions.isAnalyzing || predictions.isClassifying}
+          modelLoaded={model.modelState.loaded}
+          interval={detectionInterval}
+          onIntervalChange={setDetectionInterval}
+          onAnalyzeNow={handleAnalyze}
         />
       </div>
 
@@ -72,7 +90,7 @@ export function WebcamClassifier() {
         {/* Элементы управления камерой */}
         <CameraControls
           cameraState={camera.cameraState}
-          modelLoaded={model.loaded}
+          modelLoaded={model.modelState.loaded}
           onRequestPermission={camera.requestPermission}
           onEnableCamera={() => camera.enableCamera(videoRef)}
           onDisableCamera={camera.disableCamera}
@@ -83,7 +101,7 @@ export function WebcamClassifier() {
         {/* Элементы управления стримом */}
         <StreamControls
           streamState={stream.streamState}
-          modelLoaded={model.loaded}
+          modelLoaded={model.modelState.loaded}
           onLoadStream={() => stream.loadStream(videoRef)}
           onStopStream={() => stream.stopStream(videoRef)}
           onUrlChange={stream.setUrl}
@@ -92,7 +110,7 @@ export function WebcamClassifier() {
         {/* Загрузка файлов */}
         <FileUpload 
           streamState={stream.streamState}
-          modelLoaded={model.loaded}
+          modelLoaded={model.modelState.loaded}
           onFileLoad={(file) => stream.loadFile(videoRef, file)}
           onStopStream={() => stream.stopStream(videoRef)}
         />
@@ -100,38 +118,29 @@ export function WebcamClassifier() {
 
       {/* Видео дисплей */}
       <div class="card video-section">
-        {/* Всегда показываем VideoWithOverlay для обеспечения наличия видео элемента */}
         <VideoWithOverlay 
           videoRef={videoRef}
           canvasRef={canvasRef}
-          cameraEnabled={camera.cameraState.enabled || stream.streamState.isStreamMode || stream.streamState.isFileMode}
+          cameraEnabled={camera.cameraState.isActive || stream.streamState.isStreamMode || stream.streamState.isFileMode}
           onClassifyFrame={handleAnalyze}
-          isAnalyzing={predictions.isAnalyzing}
-          modelLoaded={model.loaded}
-          detections={(model.modelType === 'yolo' || model.modelType === 'coco-ssd') ? predictions.detections : []}
+          isAnalyzing={predictions.isAnalyzing || predictions.isClassifying}
+          modelLoaded={model.modelState.loaded}
+          detections={predictions.detections}
+          yolov8Detections={predictions.yolov8Detections}
+          modelState={model.modelState}
         />
       </div>
 
-      {/* Результаты анализа */}
+      {/* Результаты анализа - только детекция объектов */}
       <div class="results-section">
-        {/* Классификация (MobileNet) */}
-        {model.modelType === 'mobilenet' && predictions.predictions.length > 0 && (
-          <div class="card">
-            <PredictionsDisplay 
-              predictions={predictions.predictions}
-            />
-          </div>
-        )}
-
-        {/* Детекция объектов (YOLO/COCO-SSD) - только статистика */}
-        {(model.modelType === 'yolo' || model.modelType === 'coco-ssd') && (
-          <div class="card">
-            <DetectionStats 
-              detections={predictions.detections}
-              isAnalyzing={predictions.isAnalyzing}
-            />
-          </div>
-        )}
+        <div class="card">
+          <DetectionStats 
+            detections={predictions.detections}
+            yolov8Detections={predictions.yolov8Detections}
+            isAnalyzing={predictions.isAnalyzing || predictions.isClassifying}
+            modelState={model.modelState}
+          />
+        </div>
       </div>
 
     </div>

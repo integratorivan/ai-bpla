@@ -1,154 +1,160 @@
-import { useState, useCallback } from 'preact/hooks'
-import type { ModelState, TensorFlowModel } from '../types/ml5'
+import { useState, useCallback, useEffect } from 'preact/hooks'
+import type { ModelState } from '../types/ml5'
 import * as tf from '@tensorflow/tfjs'
 import * as cocoSsd from '@tensorflow-models/coco-ssd'
+import { loadYOLOv8Model, createYOLOv8Config } from '../utils/yolov8'
+import { YOLOV8_MODELS } from '../constants'
 
 export function useModel() {
   const [modelState, setModelState] = useState<ModelState>({
     loaded: false,
-    classifier: null,
-    tensorflowModel: undefined,
-    modelType: 'mobilenet'
+    modelType: 'coco-ssd' // По умолчанию используем COCO-SSD
   })
 
-  const loadMobileNet = useCallback(async () => {
+  const [loadingProgress, setLoadingProgress] = useState(0)
+
+  // Инициализация TensorFlow.js
+  const initializeTensorFlow = useCallback(async () => {
     try {
-      console.log('🔄 Загружаем модель MobileNet...')
-      
-      const newClassifier = ml5.imageClassifier('MobileNet', () => {
-        console.log('✅ Модель MobileNet загружена!')
-        setModelState(prev => ({ 
-          ...prev, 
-          loaded: true, 
-          classifier: newClassifier,
-          modelType: 'mobilenet'
-        }))
-      })
+      // Ждем готовности TensorFlow
+      await tf.ready()
+      console.log('✅ TensorFlow.js инициализирован')
+      console.log('Backend:', tf.getBackend())
     } catch (error) {
-      console.error('❌ Ошибка загрузки MobileNet:', error)
+      console.error('❌ Ошибка инициализации TensorFlow.js:', error)
+      // Fallback на CPU backend
+      try {
+        await tf.setBackend('cpu')
+        await tf.ready()
+        console.log('✅ TensorFlow.js инициализирован с CPU backend')
+      } catch (fallbackError) {
+        console.error('❌ Критическая ошибка инициализации TensorFlow.js:', fallbackError)
+      }
     }
   }, [])
 
+  // Загрузка YOLOv8 модели
+  const loadYOLOv8 = useCallback(async (variant: keyof typeof YOLOV8_MODELS = 'yolov8s') => {
+    try {
+      console.log(`🔄 Загружаем модель YOLOv8 ${variant}...`)
+      
+      setModelState(prev => ({ 
+        ...prev, 
+        loaded: false,
+        modelType: 'yolov8'
+      }))
+      setLoadingProgress(0)
+      
+      // Инициализируем TensorFlow.js перед загрузкой модели
+      await initializeTensorFlow()
+      
+      // Загружаем YOLOv8 модель с отслеживанием прогресса
+      const model = await loadYOLOv8Model(variant, (progress) => {
+        setLoadingProgress(progress)
+      })
+      
+      if (!model) {
+        throw new Error('Не удалось загрузить YOLOv8 модель')
+      }
+
+      // Создаем конфигурацию для YOLOv8
+      const config = createYOLOv8Config(variant)
+      const modelInfo = YOLOV8_MODELS[variant]
+      
+      setModelState({
+        loaded: true,
+        tensorflowModel: model,
+        modelType: 'yolov8',
+        yolov8Config: config,
+        modelInfo: {
+          name: modelInfo.name,
+          variant: variant,
+          size: modelInfo.size,
+          accuracy: modelInfo.accuracy
+        }
+      })
+      setLoadingProgress(1)
+      
+      console.log(`✅ Модель YOLOv8 ${variant} загружена!`)
+    } catch (error) {
+      console.error('❌ Ошибка загрузки YOLOv8:', error)
+      setModelState(prev => ({ 
+        ...prev, 
+        loaded: false,
+        modelType: 'yolov8'
+      }))
+      setLoadingProgress(0)
+    }
+  }, [initializeTensorFlow])
+
+  // Загрузка COCO-SSD модели
   const loadCocoSSD = useCallback(async () => {
     try {
-      console.log('🔄 Загружаем COCO-SSD модель...')
+      console.log('🔄 Загружаем модель COCO-SSD...')
       
-      // Загружаем официальную COCO-SSD модель
-      const model = await cocoSsd.load({
-        base: 'mobilenet_v2' // Можно также использовать 'lite_mobilenet_v2' для большей скорости
-      })
-
-      console.log('✅ COCO-SSD модель успешно загружена!')
-
-      // Создаем TensorFlowModel объект для совместимости
-      const tensorflowModel: TensorFlowModel = {
-        net: model,
-        inputShape: [1, 224, 224, 3], // COCO-SSD принимает изображения любого размера
-        outputShape: [1, 100, 6], // Примерный формат: [batch, max_detections, [x, y, width, height, class, score]]
-        modelType: 'detection'
-      }
-
-      setModelState(prev => ({
-        ...prev,
-        loaded: true,
-        classifier: null, // Для детекции не используем ml5.js classifier
-        tensorflowModel,
+      setModelState(prev => ({ 
+        ...prev, 
+        loaded: false,
         modelType: 'coco-ssd'
       }))
-
-    } catch (error) {
-      console.error('❌ Ошибка загрузки COCO-SSD модели:', error)
-      console.log('🔄 Переключаемся на MobileNet...')
-      loadMobileNet()
-    }
-  }, [loadMobileNet])
-
-  const loadYOLO = useCallback(async (modelUrl?: string) => {
-    try {
-      console.log('🔄 Загружаем YOLO модель...')
+      setLoadingProgress(0)
       
-      // Попробуем несколько рабочих URL
-      const fallbackUrls = [
-        modelUrl, // Пользовательская модель
-        '/models/yolo/model.json', // Локальная модель
-        'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v1_0.25_224/model.json', // Пример рабочей модели
-      ].filter(Boolean)
-
-      let model = null
-      let workingUrl = null
-
-      for (const url of fallbackUrls) {
-        try {
-          console.log(`🔄 Пробуем загрузить: ${url}`)
-          model = await tf.loadLayersModel(url!)
-          workingUrl = url
-          break
-        } catch (urlError) {
-          console.log(`❌ Не удалось загрузить ${url}:`, urlError)
-          continue
-        }
-      }
-
-      if (!model) {
-        throw new Error('Не удалось загрузить ни одну YOLO модель')
-      }
-
-      console.log(`✅ YOLO модель загружена из: ${workingUrl}`)
+      // Инициализируем TensorFlow.js перед загрузкой модели
+      await initializeTensorFlow()
       
-      // Получаем информацию о входных и выходных слоях
-      const inputShape = model.inputs[0].shape as number[]
-      const outputShape = model.outputs[0].shape as number[]
+      // Загружаем COCO-SSD модель
+      const model = await cocoSsd.load()
       
-      const tensorflowModel: TensorFlowModel = {
-        net: model,
-        inputShape,
-        outputShape,
-        modelType: 'detection'
-      }
-
-      console.log('📊 Входной размер:', inputShape)
-      console.log('📊 Выходной размер:', outputShape)
-
-      setModelState(prev => ({
-        ...prev,
+      setModelState({
         loaded: true,
-        classifier: null,
-        tensorflowModel,
-        modelType: 'yolo'
-      }))
-
+        tensorflowModel: model,
+        modelType: 'coco-ssd',
+        modelInfo: {
+          name: 'COCO-SSD',
+          size: '~27 MB',
+          accuracy: 'Высокая'
+        }
+      })
+      setLoadingProgress(1)
+      
+      console.log('✅ Модель COCO-SSD загружена!')
     } catch (error) {
-      console.error('❌ Ошибка загрузки YOLO модели:', error)
-      console.log('🔄 Переключаемся на COCO-SSD как альтернативу...')
-      loadCocoSSD()
+      console.error('❌ Ошибка загрузки COCO-SSD:', error)
+      setModelState(prev => ({ ...prev, loaded: false }))
+      setLoadingProgress(0)
     }
-  }, [loadCocoSSD])
+  }, [initializeTensorFlow])
 
-  const switchModel = useCallback((modelType: 'mobilenet' | 'yolo' | 'coco-ssd', modelUrl?: string) => {
+  // Переключение модели
+  const switchModel = useCallback((
+    modelType: 'coco-ssd' | 'yolov8', 
+    modelUrl?: string,
+    yolov8Variant?: keyof typeof YOLOV8_MODELS
+  ) => {
     setModelState(prev => ({ ...prev, loaded: false }))
+    setLoadingProgress(0)
     
-    if (modelType === 'yolo') {
-      loadYOLO(modelUrl)
-    } else if (modelType === 'coco-ssd') {
+    if (modelType === 'coco-ssd') {
+      console.log('🔄 Переключаемся на COCO-SSD...')
       loadCocoSSD()
-    } else {
-      loadMobileNet()
+    } else if (modelType === 'yolov8') {
+      console.log(`🔄 Переключаемся на YOLOv8 ${yolov8Variant || 'yolov8s'}...`)
+      loadYOLOv8(yolov8Variant || 'yolov8s')
     }
-  }, [loadMobileNet, loadYOLO, loadCocoSSD])
+  }, [loadCocoSSD, loadYOLOv8])
 
-  // По умолчанию загружаем MobileNet при первом использовании
-  const initialize = useCallback(() => {
-    if (!modelState.loaded && !modelState.classifier && !modelState.tensorflowModel) {
-      loadMobileNet()
+  // По умолчанию загружаем COCO-SSD при первом использовании
+  useEffect(() => {
+    if (!modelState.loaded && !modelState.tensorflowModel) {
+      loadCocoSSD()
     }
-  }, [modelState.loaded, modelState.classifier, modelState.tensorflowModel, loadMobileNet])
+  }, [modelState.loaded, modelState.tensorflowModel, loadCocoSSD])
 
   return {
-    ...modelState,
-    loadMobileNet,
-    loadYOLO,
+    modelState,
+    loadingProgress,
+    loadYOLOv8,
     loadCocoSSD,
-    switchModel,
-    initialize
+    switchModel
   }
 } 

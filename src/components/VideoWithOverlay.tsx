@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'preact/hooks'
-import type { Detection } from '../types/ml5'
+import type { Detection, YOLOv8Detection, ModelState } from '../types/ml5'
+import { DETECTION_COLORS } from '../constants'
 
 interface VideoWithOverlayProps {
   cameraEnabled: boolean
@@ -9,6 +10,8 @@ interface VideoWithOverlayProps {
   videoRef: { current: HTMLVideoElement | null }
   canvasRef: { current: HTMLCanvasElement | null }
   detections: Detection[]
+  yolov8Detections?: YOLOv8Detection[]
+  modelState?: ModelState
 }
 
 export function VideoWithOverlay({ 
@@ -18,9 +21,16 @@ export function VideoWithOverlay({
   onClassifyFrame,
   videoRef,
   canvasRef,
-  detections
+  detections,
+  yolov8Detections,
+  modelState
 }: VideoWithOverlayProps) {
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Получаем актуальные детекции в зависимости от типа модели
+  const currentDetections = modelState?.modelType === 'yolov8' && yolov8Detections 
+    ? yolov8Detections 
+    : detections
 
   // Убеждаемся, что видео элемент зарегистрирован
   useEffect(() => {
@@ -88,10 +98,10 @@ export function VideoWithOverlay({
     // Очищаем canvas
     ctx?.clearRect(0, 0, displayWidth, displayHeight)
 
-    if (!ctx || detections.length === 0) return
+    if (!ctx || currentDetections.length === 0) return
 
     // Отрисовываем каждую детекцию с правильным масштабированием
-    detections.forEach((detection, index) => {
+    currentDetections.forEach((detection, index) => {
       const [x, y, width, height] = detection.bbox
 
       // Применяем масштабирование координат
@@ -109,9 +119,9 @@ export function VideoWithOverlay({
       }
 
       // Выбираем цвет для bounding box (уникальный для каждого класса)
-      const hue = (detection.classId * 137) % 360
-      const color = `hsl(${hue}, 70%, 50%)`
-      const bgColor = `hsla(${hue}, 70%, 50%, 0.2)`
+      const colorIndex = detection.classId % DETECTION_COLORS.length
+      const color = DETECTION_COLORS[colorIndex] || `hsl(${(detection.classId * 137) % 360}, 70%, 50%)`
+      const bgColor = color.replace('rgb(', 'rgba(').replace(')', ', 0.2)')
 
       // Рисуем заливку
       ctx.fillStyle = bgColor
@@ -157,7 +167,7 @@ export function VideoWithOverlay({
       ctx.fillStyle = '#fff'
       ctx.fillText(label, adjustedLabelX + padding, labelY - padding)
     })
-  }, [detections, videoRef])
+  }, [currentDetections, videoRef])
 
   if (!cameraEnabled) {
     return null

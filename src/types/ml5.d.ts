@@ -1,15 +1,7 @@
 // Типы для ml5.js
 declare global {
-  const ml5: {
-    imageClassifier: (
-      modelName: string,
-      callback?: () => void
-    ) => {
-      classify: (
-        input: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement,
-        callback?: (error: any, results: any[]) => void
-      ) => Promise<any[]>
-    }
+  interface Window {
+    ml5: any
   }
 }
 
@@ -33,6 +25,26 @@ export interface Prediction {
   confidence: number
 }
 
+// YOLOv8 специфичные типы
+export interface YOLOv8Detection {
+  bbox: [number, number, number, number] // [x, y, width, height]
+  class: string
+  classId: number
+  confidence: number
+  // Дополнительные поля специфичные для YOLOv8
+  area?: number
+  normalized?: boolean
+}
+
+export interface YOLOv8Config {
+  modelUrl: string
+  confThreshold: number
+  iouThreshold: number
+  inputSize: number
+  maxDetections: number
+  modelVariant: 'yolov8n' | 'yolov8s' | 'yolov8m' | 'yolov8l' | 'yolov8x'
+}
+
 // Новые типы для устройств захвата видео
 export interface VideoDevice {
   deviceId: string
@@ -44,19 +56,27 @@ export interface VideoDevice {
 }
 
 export interface CameraState {
-  enabled: boolean
   stream: MediaStream | null
-  permissionGranted: boolean | null
-  devices: VideoDevice[]
-  selectedDeviceId: string | null
-  isLoadingDevices: boolean
+  isActive: boolean
+  devices: MediaDeviceInfo[]
+  selectedDevice: string | null
+  error: string | null
 }
 
 export interface ModelState {
   loaded: boolean
-  classifier: any
-  tensorflowModel?: TensorFlowModel
-  modelType: 'mobilenet' | 'yolo' | 'coco-ssd'
+  classifier?: any
+  tensorflowModel?: any
+  modelType: 'yolo' | 'coco-ssd' | 'yolov8'
+  // Добавляем конфигурацию для YOLOv8
+  yolov8Config?: YOLOv8Config
+  // Добавляем информацию о загруженной модели
+  modelInfo?: {
+    name: string
+    variant?: string
+    size?: string
+    accuracy?: string
+  }
 }
 
 export interface StreamState {
@@ -67,10 +87,14 @@ export interface StreamState {
   fileName: string
 }
 
-export interface AnalysisState {
-  isAnalyzing: boolean
+export interface PredictionState {
   predictions: Prediction[]
   detections: Detection[]
+  // Добавляем YOLOv8 детекции
+  yolov8Detections: YOLOv8Detection[]
+  isClassifying: boolean
+  isAnalyzing: boolean
+  lastClassified: Date | null
 }
 
 export interface DragState {
