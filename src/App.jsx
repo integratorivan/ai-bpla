@@ -14,7 +14,7 @@ const App = () => {
     net: null,
     inputShape: [1, 0, 0, 3],
   }); // init model & input shape
-  const [streaming, setStreaming] = useState(null); // current streaming mode
+  const [streaming, setStreaming] = useState(null); // current streaming mode - централизованное состояние
   const [statistics, setStatistics] = useState({}); // detection statistics
 
   // references
@@ -42,14 +42,6 @@ const App = () => {
     setStatistics({});
   };
 
-  // Determine current streaming mode
-  const getCurrentStreamingMode = () => {
-    if (imageRef.current?.style.display === "block") return "image";
-    if (videoRef.current?.style.display === "block") return "video";
-    if (cameraRef.current?.style.display === "block") return "camera";
-    return null;
-  };
-
   useEffect(() => {
     tf.ready().then(async () => {
       const yolov8 = await tf.loadGraphModel(
@@ -75,29 +67,10 @@ const App = () => {
     });
   }, []);
 
-  // Update streaming state when components mount/unmount
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStreaming(getCurrentStreamingMode());
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <div className="App">
       {loading.loading && <Loader>Загрузка модели... {(loading.progress * 100).toFixed(2)}%</Loader>}
       
-      <div className="header">
-        <h1>📷 YOLOv8 Детекция объектов в реальном времени</h1>
-        <p>
-          Приложение для обнаружения объектов в браузере на основе <code>tensorflow.js</code>
-        </p>
-        <p>
-          Модель: <code className="code">{modelName}</code>
-        </p>
-      </div>
-
       <div className="main-content">
         <div className="detection-area">
           <div className="content">
@@ -120,7 +93,7 @@ const App = () => {
               ref={videoRef}
               onPlay={() => detectVideo(videoRef.current, model, canvasRef.current, handleDetection)}
             />
-            <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
+              <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
           </div>
           
           <VideoControls 
@@ -140,7 +113,9 @@ const App = () => {
       <ButtonHandler 
         imageRef={imageRef} 
         cameraRef={cameraRef} 
-        videoRef={videoRef} 
+        videoRef={videoRef}
+        streaming={streaming}
+        setStreaming={setStreaming}
       />
     </div>
   );
