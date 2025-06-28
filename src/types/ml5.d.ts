@@ -33,10 +33,23 @@ export interface Prediction {
   confidence: number
 }
 
+// Новые типы для устройств захвата видео
+export interface VideoDevice {
+  deviceId: string
+  groupId: string
+  kind: MediaDeviceKind
+  label: string
+  isIPhone: boolean
+  isContinuityCamera: boolean
+}
+
 export interface CameraState {
   enabled: boolean
   stream: MediaStream | null
   permissionGranted: boolean | null
+  devices: VideoDevice[]
+  selectedDeviceId: string | null
+  isLoadingDevices: boolean
 }
 
 export interface ModelState {

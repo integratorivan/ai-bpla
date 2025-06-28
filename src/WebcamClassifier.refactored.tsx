@@ -9,10 +9,11 @@ import {
   StreamControls, 
   CameraControls, 
   VideoDisplay, 
+  VideoWithOverlay,
   PredictionsDisplay,
   FileUpload,
   ModelSelector,
-  DetectionDisplay
+  DetectionStats
 } from './components'
 
 export function WebcamClassifier() {
@@ -77,6 +78,8 @@ export function WebcamClassifier() {
           onRequestPermission={camera.requestPermission}
           onEnableCamera={() => camera.enableCamera(videoRef)}
           onDisableCamera={camera.disableCamera}
+          onSelectDevice={camera.selectDevice}
+          onRefreshDevices={camera.refreshDevices}
         />
 
         {/* Элементы управления стримом */}
@@ -99,13 +102,15 @@ export function WebcamClassifier() {
 
       {/* Видео дисплей */}
       <div class="card video-section">
-        <VideoDisplay 
+        {/* Всегда показываем VideoWithOverlay для обеспечения наличия видео элемента */}
+        <VideoWithOverlay 
           videoRef={videoRef}
           canvasRef={canvasRef}
           cameraEnabled={camera.cameraState.enabled || stream.streamState.isStreamMode || stream.streamState.isFileMode}
           onClassifyFrame={handleAnalyze}
           isAnalyzing={predictions.isAnalyzing}
           modelLoaded={model.loaded}
+          detections={(model.modelType === 'yolo' || model.modelType === 'coco-ssd') ? predictions.detections : []}
         />
       </div>
 
@@ -120,12 +125,11 @@ export function WebcamClassifier() {
           </div>
         )}
 
-        {/* Детекция объектов (YOLO/COCO-SSD) */}
+        {/* Детекция объектов (YOLO/COCO-SSD) - только статистика */}
         {(model.modelType === 'yolo' || model.modelType === 'coco-ssd') && (
           <div class="card">
-            <DetectionDisplay 
+            <DetectionStats 
               detections={predictions.detections}
-              videoRef={videoRef}
               isAnalyzing={predictions.isAnalyzing}
             />
           </div>
