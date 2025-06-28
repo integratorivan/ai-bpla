@@ -51,13 +51,11 @@ export function WebcamClassifier() {
     camera.cameraState.enabled || stream.streamState.isStreamMode || stream.streamState.isFileMode, 
     model.loaded, 
     handleAnalyze, 
-    2000
+    300
   )
 
   return (
     <div class="webcam-classifier">
-      <h1>🎥 Анализатор видео с ИИ</h1>
-      
       {/* Выбор модели ИИ */}
       <div class="card">
         <ModelSelector 
@@ -136,28 +134,6 @@ export function WebcamClassifier() {
         )}
       </div>
 
-      {/* Информация о статусе */}
-      <div class="info">
-        <h3>ℹ️ Информация о системе</h3>
-        <ul>
-          <li><strong>🤖 Модель:</strong> {
-            model.modelType === 'coco-ssd' ? 'COCO-SSD (Детекция объектов)' :
-            model.modelType === 'yolo' ? 'YOLO (Детекция объектов)' : 
-            'MobileNet (Классификация)'
-          }</li>
-          <li><strong>📡 Статус модели:</strong> {model.loaded ? '✅ Загружена' : '⏳ Загружается...'}</li>
-          <li><strong>📹 Камера:</strong> {camera.cameraState.enabled ? '🟢 Включена' : '🔴 Выключена'}</li>
-          <li><strong>🌐 Стрим:</strong> {stream.streamState.isStreamMode ? '🟢 Активен' : '🔴 Неактивен'}</li>
-          <li><strong>📁 Файл:</strong> {stream.streamState.isFileMode ? `🟢 ${stream.streamState.fileName}` : '🔴 Не загружен'}</li>
-          <li><strong>🔍 Анализ:</strong> {predictions.isAnalyzing ? '⏳ В процессе...' : '✅ Готов'}</li>
-          {(model.modelType === 'yolo' || model.modelType === 'coco-ssd') && (
-            <li><strong>🎯 Обнаружено объектов:</strong> {predictions.detections.length}</li>
-          )}
-          {model.modelType === 'mobilenet' && (
-            <li><strong>📊 Результатов классификации:</strong> {predictions.predictions.length}</li>
-          )}
-        </ul>
-      </div>
     </div>
   )
 } 

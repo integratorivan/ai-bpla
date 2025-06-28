@@ -247,11 +247,16 @@
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Новый контейнер для видео с наложением */
+/* Адаптивный контейнер для видео с наложением */
 .video-overlay-container {
   position: relative;
-  display: inline-block;
+  display: flex;
+  justify-content: center;
   margin: 1rem 0;
+  width: 100%;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .video-element {
@@ -259,9 +264,9 @@
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   display: block;
   width: 100%;
-  max-width: 640px;
   height: auto;
   background: #000;
+  object-fit: contain; /* Сохраняем пропорции */
 }
 
 .detection-overlay {
@@ -273,6 +278,7 @@
   pointer-events: none;
   z-index: 10;
   border-radius: 8px;
+  object-fit: contain; /* Совпадает с видео */
 }
 
 .manual-controls {
@@ -783,6 +789,10 @@
 
 /* Адаптивность для мобильных устройств */
 @media (max-width: 768px) {
+  #app {
+    padding: 1rem;
+  }
+
   .model-options {
     flex-direction: column;
   }
@@ -803,5 +813,251 @@
   .detection-item {
     grid-template-columns: 1fr;
     text-align: center;
+  }
+
+  /* Оптимизированные стили для видео на мобильных */
+  .video-overlay-container {
+    margin: 0.5rem 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .video-element {
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    width: 100%;
+    height: auto;
+  }
+
+  .detection-overlay {
+    border-radius: 4px;
+  }
+
+  .manual-controls {
+    margin-top: 0.5rem;
+  }
+
+  .btn-analyze {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Улучшенная читаемость на мобильных */
+  .prediction-item {
+    padding: 1rem;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  .confidence {
+    align-self: flex-end;
+    font-size: 1.1rem;
+  }
+
+  /* Мобильная оптимизация для контролов */
+  .camera-controls {
+    margin: 0.5rem 0;
+  }
+
+  .device-selector select {
+    font-size: 1rem;
+    padding: 0.75rem;
+  }
+}
+
+/* Стили для DetectionControls */
+.detection-controls {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+}
+
+.detection-controls h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #333;
+  text-align: center;
+}
+
+.control-group {
+  margin-bottom: 1.5rem;
+}
+
+.control-group:last-child {
+  margin-bottom: 0;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.interval-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.interval-slider {
+  flex: 1;
+  height: 6px;
+  background: #e9ecef;
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.interval-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #007bff;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.interval-slider::-webkit-slider-thumb:hover {
+  background: #0056b3;
+}
+
+.interval-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #007bff;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.interval-slider::-moz-range-thumb:hover {
+  background: #0056b3;
+}
+
+.interval-display {
+  min-width: 60px;
+  text-align: center;
+}
+
+.current-interval {
+  font-weight: bold;
+  color: #007bff;
+  background: #e7f3ff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.interval-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+
+.preset-btn {
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.preset-btn:hover:not(:disabled) {
+  border-color: #007bff;
+  background: #f8f9ff;
+}
+
+.preset-btn.active {
+  border-color: #007bff;
+  background: #007bff;
+  color: white;
+}
+
+.preset-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-analyze-manual {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background 0.3s ease;
+}
+
+.btn-analyze-manual:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-analyze-manual:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.performance-info {
+  padding: 1rem;
+  background: #e7f3ff;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.info-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #495057;
+  line-height: 1.4;
+}
+
+/* Мобильные стили для контролов детекции */
+@media (max-width: 768px) {
+  .detection-controls {
+    margin: 1rem 0;
+    padding: 1rem;
+  }
+
+  .interval-presets {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .preset-btn {
+    font-size: 0.8rem;
+    padding: 0.5rem;
+  }
+
+  .interval-controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .interval-slider {
+    width: 100%;
+  }
+
+  .performance-info {
+    padding: 0.75rem;
+  }
+
+  .info-text {
+    font-size: 0.85rem;
   }
 }

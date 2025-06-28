@@ -10,38 +10,35 @@ export function usePredictions() {
     detections: []
   })
 
-  // Предобработка изображения для YOLO
+  // Оптимизированная предобработка изображения для YOLO
   const preprocessImage = useCallback((
     videoElement: HTMLVideoElement,
     inputShape: number[]
   ): tf.Tensor => {
     const [batch, height, width, channels] = inputShape
     
-    // Получаем tensor из видео элемента
+    // Используем более маленький размер для ускорения (320x320 вместо 416x416)
+    const targetSize = Math.min(320, height || 320, width || 320)
+    
+    // Получаем tensor из видео элемента и сразу изменяем размер
     const imageTensor = tf.browser.fromPixels(videoElement)
+    const resized = tf.image.resizeBilinear(imageTensor, [targetSize, targetSize])
     
-    // Изменяем размер до нужного
-    const resized = tf.image.resizeBilinear(imageTensor, [height || 416, width || 416])
-    
-    // Нормализуем значения (0-255 -> 0-1)
-    const normalized = resized.div(255.0)
-    
-    // Добавляем batch размерность
-    const batched = normalized.expandDims(0)
+    // Объединяем нормализацию и добавление batch размерности в одну операцию
+    const preprocessed = resized.div(255.0).expandDims(0)
     
     // Освобождаем промежуточные tensors
     imageTensor.dispose()
     resized.dispose()
-    normalized.dispose()
     
-    return batched
+    return preprocessed
   }, [])
 
-  // Постобработка результатов YOLO
+  // Быстрая постобработка результатов YOLO
   const postprocessYOLO = useCallback((
     predictions: tf.Tensor,
-    confidenceThreshold: number = 0.3,
-    iouThreshold: number = 0.4
+    confidenceThreshold: number = 0.25, // Снижаем порог для большей чувствительности
+    iouThreshold: number = 0.5
   ): Detection[] => {
     const detections: Detection[] = []
     
@@ -49,58 +46,53 @@ export function usePredictions() {
     const predData = predictions.dataSync()
     const shape = predictions.shape
     
-    // Парсим результаты (формат зависит от конкретной YOLO модели)
-    // Обычно: [batch, grid_y, grid_x, anchors, (x, y, w, h, conf, class_probs...)]
+    // Быстрая проверка формата
+    if (shape.length < 2) return detections
     
-    // Это примерная реализация - может потребоваться адаптация под конкретную модель
-    if (shape.length >= 2 && shape[1] !== undefined) {
-      const numDetections = shape[1]
-      const detectionSize = shape[2] || 85 // 4 coords + 1 conf + 80 classes
+    const numDetections = Math.min(shape[1] || 0, 1000) // Ограничиваем количество для скорости
+    const detectionSize = shape[2] || 85
+    
+    // Оптимизированный цикл с ранним выходом
+    for (let i = 0; i < numDetections; i++) {
+      const offset = i * detectionSize
+      const confidence = predData[offset + 4]
       
-      for (let i = 0; i < numDetections; i++) {
-        const offset = i * detectionSize
-        
-        const confidence = predData[offset + 4]
-        
-        if (confidence > confidenceThreshold) {
-          const x = predData[offset + 0]
-          const y = predData[offset + 1]
-          const w = predData[offset + 2]
-          const h = predData[offset + 3]
-          
-          // Находим класс с максимальной вероятностью
-          let maxClassProb = 0
-          let classId = 0
-          
-          for (let j = 5; j < detectionSize; j++) {
-            const classProb = predData[offset + j]
-            if (classProb > maxClassProb) {
-              maxClassProb = classProb
-              classId = j - 5
-            }
-          }
-          
-          const finalConfidence = confidence * maxClassProb
-          
-          if (finalConfidence > confidenceThreshold && classId < YOLO_CLASSES.length) {
-            detections.push({
-              bbox: [
-                x - w/2, // x_min
-                y - h/2, // y_min
-                w,       // width
-                h        // height
-              ],
-              class: YOLO_CLASSES[classId],
-              classId,
-              confidence: finalConfidence
-            })
-          }
+      // Ранний выход если confidence слишком низкий
+      if (confidence < confidenceThreshold) continue
+      
+      const x = predData[offset + 0]
+      const y = predData[offset + 1] 
+      const w = predData[offset + 2]
+      const h = predData[offset + 3]
+      
+      // Быстрый поиск максимального класса
+      let maxClassProb = 0
+      let classId = 0
+      
+      // Ограничиваем поиск только популярными классами для скорости
+      const maxClassSearch = Math.min(detectionSize - 5, 20)
+      for (let j = 0; j < maxClassSearch; j++) {
+        const classProb = predData[offset + 5 + j]
+        if (classProb > maxClassProb) {
+          maxClassProb = classProb
+          classId = j
         }
+      }
+      
+      const finalConfidence = confidence * maxClassProb
+      
+      if (finalConfidence > confidenceThreshold && classId < YOLO_CLASSES.length) {
+        detections.push({
+          bbox: [x - w/2, y - h/2, w, h],
+          class: YOLO_CLASSES[classId],
+          classId,
+          confidence: finalConfidence
+        })
       }
     }
     
-    // Применяем Non-Maximum Suppression (NMS) для удаления дублирующихся детекций
-    return applyNMS(detections, iouThreshold)
+    // Быстрый NMS только если детекций много
+    return detections.length > 10 ? applyNMS(detections, iouThreshold) : detections
   }, [])
 
   // Простая реализация Non-Maximum Suppression
@@ -304,7 +296,7 @@ export function useAutoClassification(
   enabled: boolean,
   modelLoaded: boolean,
   classifyFrame: () => Promise<void>,
-  interval: number = 2000
+  interval: number = 100 // Ускоряем до 500ms = 2 FPS
 ) {
   useEffect(() => {
     if (!enabled || !modelLoaded) return

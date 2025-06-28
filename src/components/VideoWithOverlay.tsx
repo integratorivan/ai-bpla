@@ -41,7 +41,7 @@ export function VideoWithOverlay({
     checkVideoRef()
   }, [])
 
-  // Отрисовка bounding boxes на overlay canvas
+  // Адаптивная отрисовка bounding boxes на overlay canvas
   useEffect(() => {
     if (!overlayCanvasRef.current || !videoRef.current) return
 
@@ -49,29 +49,64 @@ export function VideoWithOverlay({
     const ctx = canvas.getContext('2d')
     const video = videoRef.current
 
-    // Получаем реальные размеры видео
+    // Ждем загрузки метаданных видео
+    if (!video.videoWidth || !video.videoHeight) {
+      console.log('⏳ Ждем загрузки метаданных видео...')
+      return
+    }
+
+    // Получаем точные размеры элементов
     const videoRect = video.getBoundingClientRect()
-    const videoWidth = video.videoWidth || 640
-    const videoHeight = video.videoHeight || 480
-    const displayWidth = videoRect.width || 640
-    const displayHeight = videoRect.height || 480
+    const actualVideoWidth = video.videoWidth
+    const actualVideoHeight = video.videoHeight
+    const displayWidth = Math.round(videoRect.width)
+    const displayHeight = Math.round(videoRect.height)
 
-    console.log('📹 Размеры видео:', { videoWidth, videoHeight, displayWidth, displayHeight })
+    // Вычисляем коэффициенты масштабирования
+    const scaleX = displayWidth / actualVideoWidth
+    const scaleY = displayHeight / actualVideoHeight
 
-    // Устанавливаем размер canvas равным отображаемому размеру видео
-    canvas.width = displayWidth
-    canvas.height = displayHeight
+    console.log('📹 Размеры видео:', { 
+      actualVideoWidth, 
+      actualVideoHeight, 
+      displayWidth, 
+      displayHeight,
+      scaleX,
+      scaleY
+    })
+
+    // Устанавливаем размер canvas с device pixel ratio для четкости
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = displayWidth * dpr
+    canvas.height = displayHeight * dpr
     canvas.style.width = `${displayWidth}px`
     canvas.style.height = `${displayHeight}px`
     
+    // Масштабируем контекст для device pixel ratio
+    ctx?.scale(dpr, dpr)
+    
     // Очищаем canvas
-    ctx?.clearRect(0, 0, canvas.width, canvas.height)
+    ctx?.clearRect(0, 0, displayWidth, displayHeight)
 
     if (!ctx || detections.length === 0) return
 
-    // Отрисовываем каждую детекцию
+    // Отрисовываем каждую детекцию с правильным масштабированием
     detections.forEach((detection, index) => {
       const [x, y, width, height] = detection.bbox
+
+      // Применяем масштабирование координат
+      const scaledX = x * scaleX
+      const scaledY = y * scaleY
+      const scaledWidth = width * scaleX
+      const scaledHeight = height * scaleY
+
+      // Проверяем, что координаты в пределах canvas
+      if (scaledX < 0 || scaledY < 0 || 
+          scaledX + scaledWidth > displayWidth || 
+          scaledY + scaledHeight > displayHeight) {
+        console.log('⚠️ Детекция вне границ canvas:', { scaledX, scaledY, scaledWidth, scaledHeight })
+        return
+      }
 
       // Выбираем цвет для bounding box (уникальный для каждого класса)
       const hue = (detection.classId * 137) % 360
@@ -80,16 +115,17 @@ export function VideoWithOverlay({
 
       // Рисуем заливку
       ctx.fillStyle = bgColor
-      ctx.fillRect(x, y, width, height)
+      ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight)
 
       // Рисуем рамку
       ctx.strokeStyle = color
-      ctx.lineWidth = 3
-      ctx.strokeRect(x, y, width, height)
+      ctx.lineWidth = Math.max(2, Math.round(3 * Math.min(scaleX, scaleY)))
+      ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight)
 
-      // Подготавливаем текст
+      // Подготавливаем текст с адаптивным размером
       const label = `${detection.class} ${Math.round(detection.confidence * 100)}%`
-      const fontSize = Math.max(12, Math.min(18, width / 8))
+      const baseFontSize = Math.max(10, Math.min(16, scaledWidth / 8))
+      const fontSize = Math.round(baseFontSize * Math.min(scaleX, scaleY))
       ctx.font = `bold ${fontSize}px Arial`
       
       // Измеряем размер текста
@@ -97,22 +133,29 @@ export function VideoWithOverlay({
       const textWidth = textMetrics.width
       const textHeight = fontSize
 
+      // Адаптивный padding
+      const padding = Math.max(4, Math.round(6 * Math.min(scaleX, scaleY)))
+      const labelX = scaledX
+      const labelY = scaledY > textHeight + padding ? 
+        scaledY - padding : 
+        scaledY + scaledHeight + textHeight + padding
+
+      // Проверяем, что текст помещается в canvas
+      const textBoxWidth = textWidth + padding * 2
+      const adjustedLabelX = Math.min(labelX, displayWidth - textBoxWidth)
+
       // Рисуем фон для текста
-      const padding = 6
-      const labelX = x
-      const labelY = y > textHeight + padding ? y - padding : y + height + textHeight + padding
-
       ctx.fillStyle = color
-      ctx.fillRect(labelX, labelY - textHeight - padding, textWidth + padding * 2, textHeight + padding * 2)
+      ctx.fillRect(adjustedLabelX, labelY - textHeight - padding, textBoxWidth, textHeight + padding * 2)
 
-      // Рисуем обводку для текста
+      // Рисуем обводку для текста (адаптивная толщина)
       ctx.strokeStyle = '#000'
-      ctx.lineWidth = 3
-      ctx.strokeText(label, labelX + padding, labelY - padding)
+      ctx.lineWidth = Math.max(1, Math.round(2 * Math.min(scaleX, scaleY)))
+      ctx.strokeText(label, adjustedLabelX + padding, labelY - padding)
       
       // Рисуем белый текст
       ctx.fillStyle = '#fff'
-      ctx.fillText(label, labelX + padding, labelY - padding)
+      ctx.fillText(label, adjustedLabelX + padding, labelY - padding)
     })
   }, [detections, videoRef])
 
