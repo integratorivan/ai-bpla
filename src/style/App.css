@@ -541,16 +541,61 @@
 
 /* Backend Info */
 .backend-info {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 8px;
-  padding: 10px;
   margin-top: 15px;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  border-radius: 6px;
   text-align: center;
-  border: 1px solid rgba(52, 152, 219, 0.3);
 }
 
 .backend-info small {
   color: #3498db;
   font-weight: 600;
   font-size: 0.85em;
+}
+
+/* Model Info */
+.model-info {
+  margin-top: 15px;
+  padding: 12px;
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.model-info h4 {
+  margin: 0 0 5px 0;
+  color: #1976d2;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.model-info small {
+  color: #555;
+  font-size: 12px;
+}
+
+/* Info Note */
+.info-note {
+  margin-top: 15px;
+  padding: 12px;
+  background: #fff3cd;
+  border: 1px solid #ffd93d;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.info-note h4 {
+  margin: 0 0 8px 0;
+  color: #856404;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.info-note small {
+  color: #856404;
+  font-size: 11px;
+  line-height: 1.4;
+  display: block;
 }

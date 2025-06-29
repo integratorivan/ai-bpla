@@ -47,7 +47,12 @@ const preprocess = (source, modelWidth, modelHeight) => {
  * @param {Function} onDetection callback function to handle detected objects statistics
  */
 export const detect = async (source, model, canvasRef, callback = () => {}, onDetection = null) => {
+  const startTime = performance.now(); // Начинаем измерение времени
+  
+  // ВАЖНО: Модели YOLO жестко привязаны к размеру входа, поэтому всегда используем размер модели
   const [modelWidth, modelHeight] = model.inputShape.slice(1, 3); // get model width and height
+
+  console.log(`🔍 Детекция с размером модели: ${modelWidth}x${modelHeight} (inputSize игнорируется)`);
 
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(source, modelWidth, modelHeight); // preprocess image
@@ -84,6 +89,9 @@ export const detect = async (source, model, canvasRef, callback = () => {}, onDe
   const scores_data = scores.gather(nms, 0).dataSync(); // indexing scores by nms index
   const classes_data = classes.gather(nms, 0).dataSync(); // indexing classes by nms index
 
+  const endTime = performance.now(); // Заканчиваем измерение времени
+  const detectionTime = endTime - startTime; // Вычисляем время детекции
+
   // Collect statistics if callback provided
   if (onDetection && classes_data.length > 0) {
     const detectedObjects = {};
@@ -92,7 +100,10 @@ export const detect = async (source, model, canvasRef, callback = () => {}, onDe
       const className = labels[classIndex];
       detectedObjects[className] = (detectedObjects[className] || 0) + 1;
     }
-    onDetection(detectedObjects);
+    onDetection(detectedObjects, detectionTime); // Передаём время детекции
+  } else if (onDetection) {
+    // Если объекты не найдены, всё равно передаём время
+    onDetection({}, detectionTime);
   }
 
   renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
@@ -123,7 +134,7 @@ export const detectVideo = (vidSource, model, canvasRef, onDetection = null) => 
 
     detect(vidSource, model, canvasRef, () => {
       requestAnimationFrame(detectFrame); // get another frame
-    }, onDetection);
+    }, onDetection); // Размер входа фиксирован моделью
   };
 
   detectFrame(); // initialize to detect every frame

@@ -2,9 +2,24 @@ import React from "react";
 
 const ModelSelector = ({ selectedModel, onModelChange, isLoading }) => {
   const models = [
-    { id: "yolov8n", name: "YOLOv8n", description: "Быстрая, базовая версия" },
-    { id: "yolo11n", name: "YOLOv11n", description: "Улучшенная точность" },
-    { id: "yolo12n", name: "YOLOv12n", description: "Последняя версия" }
+    { 
+      id: "yolov8n", 
+      name: "YOLOv8n", 
+      description: "Быстрая, базовая версия",
+      details: "~3M параметров, хорошая скорость"
+    },
+    { 
+      id: "yolo11n", 
+      name: "YOLOv11n", 
+      description: "Улучшенная точность",
+      details: "Новая архитектура, лучше детекция"
+    },
+    { 
+      id: "yolo12n", 
+      name: "YOLOv12n", 
+      description: "Последняя версия",
+      details: "Самая точная, может быть медленнее"
+    }
   ];
 
   return (
@@ -24,6 +39,7 @@ const ModelSelector = ({ selectedModel, onModelChange, isLoading }) => {
             <div className="model-info">
               <span className="model-name">{model.name}</span>
               <span className="model-description">{model.description}</span>
+              <span className="model-details">{model.details}</span>
             </div>
             {selectedModel === model.id && (
               <div className="model-indicator">✓</div>

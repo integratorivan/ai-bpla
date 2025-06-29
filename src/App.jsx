@@ -21,6 +21,8 @@ const App = () => {
   const [streaming, setStreaming] = useState(null); // current streaming mode
   const [statistics, setStatistics] = useState({}); // detection statistics
   const [backendInfo, setBackendInfo] = useState(""); // backend information
+  const [performanceInfo, setPerformanceInfo] = useState({ avgTime: 0, detectionCount: 0 }); // performance stats
+  const [modelDetails, setModelDetails] = useState({ params: 0, layers: 0 }); // model details
 
   // references
   const imageRef = useRef(null);
@@ -29,7 +31,7 @@ const App = () => {
   const canvasRef = useRef(null);
 
   // Handle detection statistics
-  const handleDetection = (detectedObjects) => {
+  const handleDetection = (detectedObjects, detectionTime) => {
     setStatistics(prevStats => {
       const newStats = { ...prevStats };
       Object.entries(detectedObjects).forEach(([className, count]) => {
@@ -37,11 +39,24 @@ const App = () => {
       });
       return newStats;
     });
+
+    // Update performance info if detection time is provided
+    if (detectionTime !== undefined) {
+      setPerformanceInfo(prev => {
+        const newCount = prev.detectionCount + 1;
+        const newAvgTime = ((prev.avgTime * prev.detectionCount) + detectionTime) / newCount;
+        return {
+          avgTime: newAvgTime,
+          detectionCount: newCount
+        };
+      });
+    }
   };
 
   // Clear statistics
   const clearStatistics = () => {
     setStatistics({});
+    setPerformanceInfo({ avgTime: 0, detectionCount: 0 });
   };
 
   // Initialize TensorFlow.js with fallback
@@ -53,16 +68,52 @@ const App = () => {
   // Load model function with error handling
   const loadModel = async (modelName) => {
     try {
+      console.log(`📦 Начинаю загрузку модели: ${modelName}`);
       setLoading({ loading: true, progress: 0 });
       
+      const modelPath = `${window.location.href}/${modelName}_web_model/model.json`;
+      console.log(`📍 Путь к модели: ${modelPath}`);
+      
       const yoloModel = await tf.loadGraphModel(
-        `${window.location.href}/${modelName}_web_model/model.json`,
+        modelPath,
         {
           onProgress: (fractions) => {
             setLoading({ loading: true, progress: fractions });
+            console.log(`⏳ Загрузка ${modelName}: ${(fractions * 100).toFixed(1)}%`);
           },
         }
       );
+
+      console.log(`✅ Модель ${modelName} загружена, тестирую выполнение...`);
+      console.log(`📊 Размер входа модели: ${JSON.stringify(yoloModel.inputs[0].shape)}`);
+      
+      // Безопасный доступ к топологии модели
+      let layerCount = 'н/д';
+      try {
+        if (yoloModel.modelTopology && yoloModel.modelTopology.node_def) {
+          layerCount = Object.keys(yoloModel.modelTopology.node_def).length;
+        } else if (yoloModel.layers) {
+          layerCount = yoloModel.layers.length;
+        }
+      } catch (e) {
+        console.log(`⚠️ Не удалось получить количество слоёв: ${e.message}`);
+      }
+      
+      console.log(`⚙️ Количество слоёв в модели: ${layerCount}`);
+      console.log(`🎯 Выходные тензоры: ${yoloModel.outputs.length}`);
+
+      // Попытка получить размер модели
+      try {
+        const modelSize = yoloModel.getWeights().reduce((total, weight) => total + weight.size, 0);
+        console.log(`📦 Приблизительное количество параметров: ${(modelSize / 1000000).toFixed(1)}M`);
+        setModelDetails({
+          params: (modelSize / 1000000).toFixed(1),
+          layers: layerCount
+        });
+      } catch (e) {
+        console.log(`📦 Не удалось посчитать параметры модели: ${e.message}`);
+        setModelDetails({ params: 'н/д', layers: layerCount });
+      }
 
       // Test model execution with error handling
       try {
@@ -76,7 +127,8 @@ const App = () => {
           inputShape: yoloModel.inputs[0].shape,
         });
 
-        console.log(`Model ${modelName} loaded successfully with ${tf.getBackend()} backend`);
+        console.log(`🎉 Модель ${modelName} успешно загружена и готова к работе с ${tf.getBackend()} backend`);
+        setBackendInfo(`${tf.getBackend().toUpperCase()} (модель: ${modelName})`);
       } catch (executionError) {
         console.error('Model execution failed with current backend:', executionError);
         
@@ -85,7 +137,7 @@ const App = () => {
           console.log('Switching to CPU backend due to execution error...');
           await tf.setBackend('cpu');
           await tf.ready();
-          setBackendInfo(`CPU (${tf.getBackend()}) - WebGL execution failed`);
+          setBackendInfo(`CPU (${tf.getBackend()}) - WebGL execution failed (модель: ${modelName})`);
           
           // Retry model execution with CPU
           const dummyInput = tf.ones(yoloModel.inputs[0].shape);
@@ -104,7 +156,7 @@ const App = () => {
         }
       }
     } catch (error) {
-      console.error("Ошибка загрузки модели:", error);
+      console.error(`❌ Ошибка загрузки модели ${modelName}:`, error);
       setLoading({ loading: false, progress: 0 });
       
       // User-friendly error message
@@ -124,9 +176,20 @@ const App = () => {
   // Handle model change
   const handleModelChange = (modelName) => {
     if (modelName !== selectedModel && !loading.loading) {
+      console.log(`🔄 Переключение модели с ${selectedModel} на ${modelName}`);
+      
+      // Очищаем canvas перед сменой модели
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      
       setSelectedModel(modelName);
       // Clear statistics when changing model
       clearStatistics();
+      // Clear model details
+      setModelDetails({ params: 0, layers: 0 });
     }
   };
 
@@ -193,6 +256,23 @@ const App = () => {
               <small>Backend: {backendInfo}</small>
             </div>
           )}
+          
+          <div className="model-info">
+            <h4>Активная модель: {selectedModel}</h4>
+            <small>Размер входа: {model.inputShape ? `${model.inputShape[1]}×${model.inputShape[2]}` : 'загрузка...'} пикселей (фиксированный)</small>
+            {modelDetails.params && (
+              <div>
+                <small>Параметры: {modelDetails.params}M</small>
+                <br />
+                <small>Слои: {modelDetails.layers}</small>
+              </div>
+            )}
+            {performanceInfo.detectionCount > 0 && (
+              <div>
+                <small>Среднее время детекции: {performanceInfo.avgTime.toFixed(1)}мс</small>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
