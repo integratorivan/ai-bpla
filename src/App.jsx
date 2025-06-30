@@ -212,6 +212,7 @@ const App = () => {
     return () => clearInterval(interval);
   }, []);
 
+
   return (
     <div className="App">
       {loading.loading && <Loader>Загрузка модели {selectedModel}... {(loading.progress * 100).toFixed(2)}%</Loader>}

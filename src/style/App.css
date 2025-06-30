@@ -110,6 +110,9 @@
   border: 2px solid var(--border-primary);
   padding: 15px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
 .control-panel::before {
