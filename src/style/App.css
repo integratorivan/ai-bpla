@@ -468,37 +468,144 @@
 }
 
 @media (max-width: 768px) {
+  .App {
+    overflow-y: auto;
+  }
+
   .main-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    height: auto;
+    grid-template-rows: 1fr auto;
+    height: 100vh;
+  }
+  
+  .video-area {
+    min-height: 40vh;
+    border-right: none;
+    border-bottom: 2px solid var(--border-primary);
   }
   
   .control-area {
-    padding: 10px;
-    gap: 10px;
+    padding: 5px;
+    gap: 5px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--bg-primary);
+  }
+
+  /* Collapsible panels for mobile */
+  .collapsible-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    margin-bottom: 5px;
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-primary);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+  }
+
+  .panel-header:hover {
+    background: var(--bg-primary);
+    border-color: var(--accent-cyan);
+  }
+
+  .panel-header.active {
+    background: var(--bg-primary);
+    border-bottom-color: var(--accent-blue);
+  }
+
+  .panel-title {
+    color: var(--accent-blue);
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-shadow: var(--glow-blue);
+  }
+
+  .panel-toggle {
+    color: var(--accent-cyan);
+    font-size: 1.2em;
+    transition: transform 0.3s ease;
+  }
+
+  .panel-toggle.expanded {
+    transform: rotate(180deg);
+  }
+
+  .panel-content {
+    padding: 10px 15px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+  }
+
+  .panel-content.expanded {
+    max-height: 500px;
+    padding: 15px;
+  }
+
+  /* Hide original panel headers on mobile */
+  .control-panel::before,
+  .statistics-panel::before {
+    display: none;
+  }
+
+  .control-panel,
+  .statistics-panel {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
   }
   
   .btn-container {
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
   }
   
   .control-btn {
-    padding: 10px 5px;
+    padding: 12px 8px;
     font-size: 0.7em;
     flex-direction: column;
     gap: 5px;
-    min-height: auto;
+    min-height: 70px;
   }
   
   .btn-icon {
-    font-size: 1.2em;
+    font-size: 1.4em;
   }
   
   .btn-text {
     font-size: 0.6em;
     text-align: center;
+    line-height: 1.1;
+  }
+
+  .stats-content {
+    max-height: 150px;
+  }
+
+  .stat-item {
+    padding: 6px 8px;
+    font-size: 0.8em;
+  }
+
+  .stat-label {
+    font-size: 0.7em;
+  }
+
+  .stat-count {
+    font-size: 0.7em;
+    padding: 1px 6px;
   }
 }
 

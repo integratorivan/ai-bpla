@@ -7,6 +7,7 @@ import ButtonHandler from "./components/btn-handler";
 import Statistics from "./components/statistics";
 import VideoControls from "./components/video-controls";
 import ModelSelector from "./components/model-selector";
+import CollapsiblePanel from "./components/collapsible-panel";
 import { detect, detectVideo } from "./utils/detect";
 import "./style/App.css";
 import "./style/model-selector.css";
@@ -252,26 +253,32 @@ const App = () => {
         {/* Правая область - контролы */}
         <div className="control-area">
           {/* Выбор модели вверху */}
-          <ModelSelector 
-            selectedModel={selectedModel}
-            onModelChange={handleModelChange}
-            isLoading={loading.loading}
-          />
+          <CollapsiblePanel title="MODEL SELECTION" defaultExpanded={false} icon="🧠">
+            <ModelSelector 
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
+              isLoading={loading.loading}
+            />
+          </CollapsiblePanel>
           
           {/* Контролы */}
-          <ButtonHandler
-            imageRef={imageRef}
-            cameraRef={cameraRef}
-            videoRef={videoRef}
-            streaming={streaming}
-            setStreaming={setStreaming}
-          />
+          <CollapsiblePanel title="CONTROLS" defaultExpanded={false} icon="🎮">
+            <ButtonHandler
+              imageRef={imageRef}
+              cameraRef={cameraRef}
+              videoRef={videoRef}
+              streaming={streaming}
+              setStreaming={setStreaming}
+            />
+          </CollapsiblePanel>
           
           {/* Компактная статистика */}
-          <Statistics 
-            statistics={statistics} 
-            onClearStats={clearStatistics} 
-          />
+          <CollapsiblePanel title="STATISTICS" defaultExpanded={false} icon="📊">
+            <Statistics 
+              statistics={statistics} 
+              onClearStats={clearStatistics} 
+            />
+          </CollapsiblePanel>
         </div>
       </div>
     </div>
