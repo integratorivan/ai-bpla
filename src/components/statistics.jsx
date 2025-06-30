@@ -11,18 +11,17 @@ const Statistics = ({ statistics, onClearStats }) => {
   return (
     <div className="statistics-panel">
       <div className="stats-header">
-        <h3>📊 Статистика сессии</h3>
         <div className="stats-total">
-          Всего объектов: <span className="total-count">{totalObjects}</span>
+          Всего: <span className="total-count">{totalObjects}</span>
         </div>
         <button className="clear-stats-btn" onClick={onClearStats}>
-          Очистить статистику
+          Очистить
         </button>
       </div>
       
       <div className="stats-content">
         {sortedStats.length === 0 ? (
-          <div className="no-stats">Объекты еще не обнаружены</div>
+          <div className="no-stats">Объекты не обнаружены</div>
         ) : (
           <div className="stats-list">
             {sortedStats.map(([label, count]) => (

@@ -1,32 +1,36 @@
 import React from "react";
+import "../style/model-selector.css";
 
 const ModelSelector = ({ selectedModel, onModelChange, isLoading }) => {
   const models = [
     { 
       id: "yolov8n", 
-      name: "YOLOv8n", 
-      description: "Быстрая, базовая версия",
-      details: "~3M параметров, хорошая скорость"
+      name: "YOLO v8.NANO", 
+      description: "FAST_DEPLOY • LIGHTWEIGHT",
+      details: "~3M params • optimized speed"
     },
     { 
       id: "yolo11n", 
-      name: "YOLOv11n", 
-      description: "Улучшенная точность",
-      details: "Новая архитектура, лучше детекция"
+      name: "YOLO v11.NANO", 
+      description: "ENHANCED_ACCURACY • IMPROVED",
+      details: "new architecture • better detection"
     },
     { 
       id: "yolo12n", 
-      name: "YOLOv12n", 
-      description: "Последняя версия",
-      details: "Самая точная, может быть медленнее"
+      name: "YOLO v12.NANO", 
+      description: "LATEST_BUILD • EXPERIMENTAL",
+      details: "highest accuracy • may be slower"
     }
   ];
 
   return (
     <div className="model-selector">
+      
       <div className="selector-header">
-        <h3>Выбор модели YOLO</h3>
-        <span className="current-model">Текущая: {selectedModel}</span>
+        <h3>Neural Network Selection</h3>
+        <span className="current-model">
+          ACTIVE: {selectedModel.toUpperCase()}
+        </span>
       </div>
       
       <div className="model-options">
@@ -50,7 +54,7 @@ const ModelSelector = ({ selectedModel, onModelChange, isLoading }) => {
       
       {isLoading && (
         <div className="loading-indicator">
-          <span>Загрузка модели...</span>
+          <span>NEURAL NETWORK INITIALIZATION...</span>
         </div>
       )}
     </div>

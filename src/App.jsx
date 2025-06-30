@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as tf from "@tensorflow/tfjs";
-// import "@tensorflow/tfjs-backend-webgl"; // set backend to webgl
+import "@tensorflow/tfjs-backend-webgl"; // set backend to webgl
 import "@tensorflow/tfjs-backend-webgpu";
 import Loader from "./components/loader";
 import ButtonHandler from "./components/btn-handler";
@@ -23,6 +23,7 @@ const App = () => {
   const [backendInfo, setBackendInfo] = useState(""); // backend information
   const [performanceInfo, setPerformanceInfo] = useState({ avgTime: 0, detectionCount: 0 }); // performance stats
   const [modelDetails, setModelDetails] = useState({ params: 0, layers: 0 }); // model details
+  const [sidebarVisible, setSidebarVisible] = useState(false); // sidebar visibility for mobile
 
   // references
   const imageRef = useRef(null);
@@ -174,23 +175,21 @@ const App = () => {
   };
 
   // Handle model change
-  const handleModelChange = (modelName) => {
-    if (modelName !== selectedModel && !loading.loading) {
-      console.log(`🔄 Переключение модели с ${selectedModel} на ${modelName}`);
-      
-      // Очищаем canvas перед сменой модели
-      if (canvasRef.current) {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-      
-      setSelectedModel(modelName);
-      // Clear statistics when changing model
-      clearStatistics();
-      // Clear model details
-      setModelDetails({ params: 0, layers: 0 });
+  const handleModelChange = (newModel) => {
+    if (newModel !== selectedModel && !loading.loading) {
+      setSelectedModel(newModel);
+      setLoading({ loading: true, progress: 0 });
+      clearStatistics(); // Clear stats when changing model
+      loadModel(newModel);
     }
+  };
+
+  // Determine current streaming mode
+  const getCurrentStreamingMode = () => {
+    if (imageRef.current?.style.display === "block") return "image";
+    if (videoRef.current?.style.display === "block") return "video";
+    if (cameraRef.current?.style.display === "block") return "camera";
+    return null;
   };
 
   // Load initial model
@@ -204,12 +203,22 @@ const App = () => {
     });
   }, [selectedModel]);
 
+  // Update streaming state when components mount/unmount
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStreaming(getCurrentStreamingMode());
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="App">
       {loading.loading && <Loader>Загрузка модели {selectedModel}... {(loading.progress * 100).toFixed(2)}%</Loader>}
       
-      <div className="main-content">
-        <div className="detection-area">
+      <div className="main-layout">
+        {/* Левая область - видео */}
+        <div className="video-area">
           <div className="content">
             <img
               src="#"
@@ -230,7 +239,7 @@ const App = () => {
               ref={videoRef}
               onPlay={() => detectVideo(videoRef.current, model, canvasRef.current, handleDetection)}
             />
-              <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
+            <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
           </div>
           
           <VideoControls 
@@ -239,50 +248,31 @@ const App = () => {
           />
         </div>
 
-        <div className="sidebar">
+        {/* Правая область - контролы */}
+        <div className="control-area">
+          {/* Выбор модели вверху */}
           <ModelSelector 
             selectedModel={selectedModel}
             onModelChange={handleModelChange}
             isLoading={loading.loading}
           />
           
+          {/* Контролы */}
+          <ButtonHandler
+            imageRef={imageRef}
+            cameraRef={cameraRef}
+            videoRef={videoRef}
+            streaming={streaming}
+            setStreaming={setStreaming}
+          />
+          
+          {/* Компактная статистика */}
           <Statistics 
             statistics={statistics} 
             onClearStats={clearStatistics} 
           />
-          
-          {backendInfo && (
-            <div className="backend-info">
-              <small>Backend: {backendInfo}</small>
-            </div>
-          )}
-          
-          <div className="model-info">
-            <h4>Активная модель: {selectedModel}</h4>
-            <small>Размер входа: {model.inputShape ? `${model.inputShape[1]}×${model.inputShape[2]}` : 'загрузка...'} пикселей (фиксированный)</small>
-            {modelDetails.params && (
-              <div>
-                <small>Параметры: {modelDetails.params}M</small>
-                <br />
-                <small>Слои: {modelDetails.layers}</small>
-              </div>
-            )}
-            {performanceInfo.detectionCount > 0 && (
-              <div>
-                <small>Среднее время детекции: {performanceInfo.avgTime.toFixed(1)}мс</small>
-              </div>
-            )}
-          </div>
         </div>
       </div>
-
-      <ButtonHandler 
-        imageRef={imageRef} 
-        cameraRef={cameraRef} 
-        videoRef={videoRef}
-        streaming={streaming}
-        setStreaming={setStreaming}
-      />
     </div>
   );
 };

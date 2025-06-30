@@ -86,15 +86,20 @@ const App = () => {
 
   return (
     <div className="App">
-      {loading.loading && <Loader>Загрузка модели... {(loading.progress * 100).toFixed(2)}%</Loader>}
+      {loading.loading && (
+        <div className="loading-overlay">
+          <Loader>ЗАГРУЗКА НЕЙРОСЕТИ... {(loading.progress * 100).toFixed(2)}%</Loader>
+        </div>
+      )}
       
       <div className="header">
-        <h1>📷 YOLOv8 Детекция объектов в реальном времени</h1>
+        <div className="scanner-line"></div>
+        <h1>YOLO СИСТЕМА ДЕТЕКЦИИ ОБЪЕКТОВ</h1>
         <p>
-          Приложение для обнаружения объектов в браузере на основе <code>tensorflow.js</code>
+          НЕЙРОСЕТЬ РЕАЛЬНОГО ВРЕМЕНИ НА БАЗЕ <code className="code">TENSORFLOW.JS</code>
         </p>
         <p>
-          Модель: <code className="code">{modelName}</code>
+          АКТИВНАЯ МОДЕЛЬ: <code className="code">{modelName.toUpperCase()}</code>
         </p>
       </div>
 
@@ -123,27 +128,39 @@ const App = () => {
             <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
           </div>
           
-          <VideoControls 
-            videoRef={videoRef} 
-            isVideoPlaying={streaming === "video"} 
-          />
+          {streaming === "video" && (
+            <VideoControls 
+              videoRef={videoRef}
+              onTimeUpdate={() => {}}
+            />
+          )}
         </div>
 
         <div className="sidebar">
+          <div className="control-panel">
+            <ButtonHandler
+              imageRef={imageRef}
+              cameraRef={cameraRef}
+              videoRef={videoRef}
+              streaming={streaming}
+            />
+            
+            <div className="status-indicator">
+              <div className="status-dot"></div>
+              <span className="status-text">
+                {streaming ? `MODE: ${streaming.toUpperCase()}` : 'STANDBY'}
+              </span>
+            </div>
+          </div>
+
           <Statistics 
             statistics={statistics} 
-            onClearStats={clearStatistics} 
+            onClearStats={clearStatistics}
           />
         </div>
       </div>
-
-      <ButtonHandler 
-        imageRef={imageRef} 
-        cameraRef={cameraRef} 
-        videoRef={videoRef} 
-      />
     </div>
   );
 };
 
-export default App;
+export default App; 
