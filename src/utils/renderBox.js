@@ -1,11 +1,9 @@
 import labels from "./labels.json";
 
 /**
- * Render prediction boxes
+ * Render prediction boxes with tracking information
  * @param {HTMLCanvasElement} canvasRef canvas tag reference
- * @param {Array} boxes_data boxes array
- * @param {Array} scores_data scores array
- * @param {Array} classes_data class array
+ * @param {Array} tracks_data array of tracked objects with {id, bbox, class, history}
  * @param {Array[Number]} ratios boxes ratio [xRatio, yRatio]
  */
 export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ratios) => {
@@ -17,7 +15,7 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
   // font configs
   const font = `${Math.max(
     Math.round(Math.max(ctx.canvas.width, ctx.canvas.height) / 40),
-    14
+    10
   )}px Arial`;
   ctx.font = font;
   ctx.textBaseline = "top";
@@ -60,6 +58,76 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
     // Draw labels
     ctx.fillStyle = "#ffffff";
     ctx.fillText(klass + " - " + score + "%", x1 - 1, yText < 0 ? 0 : yText);
+  }
+};
+
+/**
+ * Render tracked objects with IDs (simplified version without trajectories)
+ * @param {HTMLCanvasElement} canvasRef canvas tag reference
+ * @param {Array} tracks array of tracked objects
+ * @param {Array[Number]} ratios boxes ratio [xRatio, yRatio]
+ */
+export const renderTracks = (canvasRef, tracks, ratios) => {
+  const ctx = canvasRef.getContext("2d");
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
+
+  const colors = new Colors();
+
+  // font configs
+  const font = `${Math.max(
+    Math.round(Math.max(ctx.canvas.width, ctx.canvas.height) / 40),
+    10
+  )}px Arial`;
+  ctx.font = font;
+  ctx.textBaseline = "top";
+
+  for (const track of tracks) {
+    const { id, bbox, class: classId } = track;
+    const klass = labels[classId];
+    const color = colors.get(classId);
+
+    let [y1, x1, y2, x2] = bbox;
+    x1 *= ratios[0];
+    x2 *= ratios[0];
+    y1 *= ratios[1];
+    y2 *= ratios[1];
+    const width = x2 - x1;
+    const height = y2 - y1;
+
+    // Отрисовка bounding box
+    ctx.fillStyle = Colors.hexToRgba(color, 0.2);
+    ctx.fillRect(x1, y1, width, height);
+
+    // Отрисовка рамки (немного толще для выделения трекинга)
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(Math.min(ctx.canvas.width, ctx.canvas.height) / 150, 3);
+    ctx.strokeRect(x1, y1, width, height);
+
+    // Отрисовка фона для текста
+    ctx.fillStyle = color;
+    const labelText = `${klass} ID:${id}`;
+    const textWidth = ctx.measureText(labelText).width;
+    const textHeight = parseInt(font, 10);
+    const yText = y1 - (textHeight + ctx.lineWidth);
+    
+    ctx.fillRect(
+      x1 - 1,
+      yText < 0 ? 0 : yText,
+      textWidth + ctx.lineWidth,
+      textHeight + ctx.lineWidth
+    );
+
+    // Отрисовка текста
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(labelText, x1 - 1, yText < 0 ? 0 : yText);
+
+    // Отрисовка центральной точки (маленькая точка для ID)
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
+    ctx.fill();
   }
 };
 

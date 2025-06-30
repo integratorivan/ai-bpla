@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Webcam } from "../utils/webcam";
 
-const ButtonHandler = ({ imageRef, cameraRef, videoRef, streaming, setStreaming }) => {
+const ButtonHandler = ({ imageRef, cameraRef, videoRef, streaming, setStreaming, trackingEnabled, onToggleTracking }) => {
   const inputImageRef = useRef(null); // image input reference
   const inputVideoRef = useRef(null); // video input reference
   const webcam = new Webcam(); // webcam handler
@@ -75,6 +75,9 @@ const ButtonHandler = ({ imageRef, cameraRef, videoRef, streaming, setStreaming 
     }
   };
 
+  // Проверяем, доступен ли трекинг (только для видео и камеры)
+  const isTrackingAvailable = streaming === "video" || streaming === "camera";
+
   return (
     <div className="control-panel">
       <div className="btn-container">
@@ -139,6 +142,21 @@ const ButtonHandler = ({ imageRef, cameraRef, videoRef, streaming, setStreaming 
             </span>
           </button>
         </div>
+
+        {/* Переключатель трекинга */}
+        <div className="input-group tracking-group">
+          <button
+            className={`control-btn tracking-btn ${trackingEnabled ? "active" : ""} ${!isTrackingAvailable ? "disabled" : ""}`}
+            onClick={onToggleTracking}
+            disabled={!isTrackingAvailable}
+            title={!isTrackingAvailable ? "Трекинг доступен только для видео и камеры" : ""}
+          >
+            <span className="btn-icon">🎯</span>
+            <span className="btn-text">
+              {trackingEnabled ? "Выключить" : "Включить"} трекинг
+            </span>
+          </button>
+        </div>
       </div>
 
       {streaming && (
@@ -147,6 +165,7 @@ const ButtonHandler = ({ imageRef, cameraRef, videoRef, streaming, setStreaming 
           <span className="status-text">
             Активно: {streaming === "image" ? "изображение" : 
                      streaming === "video" ? "видео" : "камера"}
+            {isTrackingAvailable && trackingEnabled && <span className="tracking-status"> | 🎯 Трекинг ВКЛ</span>}
           </span>
         </div>
       )}

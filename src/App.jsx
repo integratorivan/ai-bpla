@@ -8,7 +8,7 @@ import Statistics from "./components/statistics";
 import VideoControls from "./components/video-controls";
 import ModelSelector from "./components/model-selector";
 import CollapsiblePanel from "./components/collapsible-panel";
-import { detect, detectVideo } from "./utils/detect";
+import { detect, detectVideo, resetTracker } from "./utils/detect";
 import "./style/App.css";
 import "./style/model-selector.css";
 
@@ -20,7 +20,9 @@ const App = () => {
   }); // init model & input shape
   const [selectedModel, setSelectedModel] = useState("yolov8n"); // default model
   const [streaming, setStreaming] = useState(null); // current streaming mode
+  const [trackingEnabled, setTrackingEnabled] = useState(false); // tracking on/off
   const [statistics, setStatistics] = useState({}); // detection statistics
+  const [trackingStats, setTrackingStats] = useState(null); // tracking statistics
   const [backendInfo, setBackendInfo] = useState(""); // backend information
   const [performanceInfo, setPerformanceInfo] = useState({ avgTime: 0, detectionCount: 0 }); // performance stats
   const [modelDetails, setModelDetails] = useState({ params: 0, layers: 0 }); // model details
@@ -32,8 +34,9 @@ const App = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // Handle detection statistics
-  const handleDetection = (detectedObjects, detectionTime) => {
+  // Handle detection statistics with tracking support
+  const handleDetection = (detectedObjects, detectionTime, totalUniqueCount = null, activeTracks = null) => {
+    // Обновляем обычную статистику (для изображений или общий подсчет)
     setStatistics(prevStats => {
       const newStats = { ...prevStats };
       Object.entries(detectedObjects).forEach(([className, count]) => {
@@ -41,6 +44,16 @@ const App = () => {
       });
       return newStats;
     });
+
+    // Обновляем статистику трекинга (только для видео с трекингом)
+    if (totalUniqueCount !== null && activeTracks !== null) {
+      setTrackingStats({
+        totalUnique: totalUniqueCount,
+        activeTracks: activeTracks
+      });
+    } else {
+      setTrackingStats(null);
+    }
 
     // Update performance info if detection time is provided
     if (detectionTime !== undefined) {
@@ -55,10 +68,33 @@ const App = () => {
     }
   };
 
-  // Clear statistics
+  // Clear statistics and reset tracker
   const clearStatistics = () => {
     setStatistics({});
+    setTrackingStats(null);
     setPerformanceInfo({ avgTime: 0, detectionCount: 0 });
+    resetTracker(); // Сбрасываем трекер
+  };
+
+  // Toggle tracking
+  const toggleTracking = () => {
+    setTrackingEnabled(prev => {
+      const newValue = !prev;
+      if (!newValue) {
+        // Если выключаем трекинг, сбрасываем трекер и статистику
+        resetTracker();
+        setTrackingStats(null);
+      }
+      return newValue;
+    });
+  };
+
+  // Reset tracker when switching video sources
+  const handleStreamingChange = (newStreaming) => {
+    if (newStreaming !== streaming) {
+      resetTracker();
+      setTrackingStats(null);
+    }
   };
 
   // Initialize TensorFlow.js with fallback
@@ -207,11 +243,15 @@ const App = () => {
   // Update streaming state when components mount/unmount
   useEffect(() => {
     const interval = setInterval(() => {
-      setStreaming(getCurrentStreamingMode());
+      const currentMode = getCurrentStreamingMode();
+      if (currentMode !== streaming) {
+        handleStreamingChange(currentMode);
+        setStreaming(currentMode);
+      }
     }, 100);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [streaming]);
 
 
   return (
@@ -225,21 +265,21 @@ const App = () => {
             <img
               src="#"
               ref={imageRef}
-              onLoad={() => detect(imageRef.current, model, canvasRef.current, () => {}, handleDetection)}
+              onLoad={() => detect(imageRef.current, model, canvasRef.current, () => {}, handleDetection, false)}
             />
             <video
               autoPlay
               muted
               playsInline
               ref={cameraRef}
-              onPlay={() => detectVideo(cameraRef.current, model, canvasRef.current, handleDetection)}
+              onPlay={() => detectVideo(cameraRef.current, model, canvasRef.current, handleDetection, trackingEnabled)}
             />
             <video
               autoPlay
               muted
               playsInline
               ref={videoRef}
-              onPlay={() => detectVideo(videoRef.current, model, canvasRef.current, handleDetection)}
+              onPlay={() => detectVideo(videoRef.current, model, canvasRef.current, handleDetection, trackingEnabled)}
             />
             <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
           </div>
@@ -269,14 +309,17 @@ const App = () => {
               videoRef={videoRef}
               streaming={streaming}
               setStreaming={setStreaming}
+              trackingEnabled={trackingEnabled}
+              onToggleTracking={toggleTracking}
             />
           </CollapsiblePanel>
           
-          {/* Компактная статистика */}
+          {/* Статистика с поддержкой трекинга */}
           <CollapsiblePanel title="STATISTICS" defaultExpanded={false} icon="📊">
             <Statistics 
               statistics={statistics} 
-              onClearStats={clearStatistics} 
+              onClearStats={clearStatistics}
+              trackingStats={trackingEnabled ? trackingStats : null}
             />
           </CollapsiblePanel>
         </div>

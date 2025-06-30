@@ -1,8 +1,35 @@
 import * as tf from "@tensorflow/tfjs";
-import { renderBoxes } from "./renderBox";
+import { renderBoxes, renderTracks } from "./renderBox";
+import { ObjectTracker } from "./tracker";
 import labels from "./labels.json";
 
 const numClass = labels.length;
+
+// Глобальный трекер для видео потоков
+let globalTracker = null;
+
+/**
+ * Получить или создать трекер для видео потока
+ */
+const getTracker = () => {
+  if (!globalTracker) {
+    globalTracker = new ObjectTracker(
+      10, // maxDisappeared - максимальное количество кадров без обнаружения
+      100 // maxDistance - максимальное расстояние для сопоставления объектов
+    );
+  }
+  return globalTracker;
+};
+
+/**
+ * Сбросить трекер (при смене видео или модели)
+ */
+export const resetTracker = () => {
+  if (globalTracker) {
+    globalTracker.reset();
+  }
+  globalTracker = null;
+};
 
 /**
  * Preprocess image / frame before forwarded into the model
@@ -45,8 +72,9 @@ const preprocess = (source, modelWidth, modelHeight) => {
  * @param {HTMLCanvasElement} canvasRef canvas reference
  * @param {VoidFunction} callback function to run after detection process
  * @param {Function} onDetection callback function to handle detected objects statistics
+ * @param {Boolean} enableTracking whether to enable object tracking (default: false for images)
  */
-export const detect = async (source, model, canvasRef, callback = () => {}, onDetection = null) => {
+export const detect = async (source, model, canvasRef, callback = () => {}, onDetection = null, enableTracking = false) => {
   const startTime = performance.now(); // Начинаем измерение времени
   
   // ВАЖНО: Модели YOLO жестко привязаны к размеру входа, поэтому всегда используем размер модели
@@ -92,21 +120,49 @@ export const detect = async (source, model, canvasRef, callback = () => {}, onDe
   const endTime = performance.now(); // Заканчиваем измерение времени
   const detectionTime = endTime - startTime; // Вычисляем время детекции
 
-  // Collect statistics if callback provided
-  if (onDetection && classes_data.length > 0) {
-    const detectedObjects = {};
-    for (let i = 0; i < classes_data.length; i++) {
-      const classIndex = classes_data[i];
-      const className = labels[classIndex];
-      detectedObjects[className] = (detectedObjects[className] || 0) + 1;
-    }
-    onDetection(detectedObjects, detectionTime); // Передаём время детекции
-  } else if (onDetection) {
-    // Если объекты не найдены, всё равно передаём время
-    onDetection({}, detectionTime);
+  // Подготавливаем детекции для трекера
+  const detections = [];
+  for (let i = 0; i < classes_data.length; i++) {
+    detections.push({
+      bbox: boxes_data.slice(i * 4, (i + 1) * 4),
+      score: scores_data[i],
+      class: classes_data[i]
+    });
   }
 
-  renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
+  if (enableTracking && source instanceof HTMLVideoElement) {
+    // Используем трекинг для видео
+    const tracker = getTracker();
+    const tracks = tracker.update(detections);
+    
+    // Отрисовываем треки
+    renderTracks(canvasRef, tracks, [xRatio, yRatio]);
+    
+    // Собираем статистику по уникальным объектам
+    if (onDetection) {
+      const uniqueStats = tracker.getUniqueObjectsStats();
+      const totalUniqueCount = tracker.getTotalUniqueCount();
+      onDetection(uniqueStats, detectionTime, totalUniqueCount, tracks.length);
+    }
+  } else {
+    // Обычная детекция без трекинга (для изображений)
+    renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]);
+    
+    // Collect statistics if callback provided
+    if (onDetection && classes_data.length > 0) {
+      const detectedObjects = {};
+      for (let i = 0; i < classes_data.length; i++) {
+        const classIndex = classes_data[i];
+        const className = labels[classIndex];
+        detectedObjects[className] = (detectedObjects[className] || 0) + 1;
+      }
+      onDetection(detectedObjects, detectionTime); // Передаём время детекции
+    } else if (onDetection) {
+      // Если объекты не найдены, всё равно передаём время
+      onDetection({}, detectionTime);
+    }
+  }
+
   tf.dispose([res, transRes, boxes, scores, classes, nms]); // clear memory
 
   callback();
@@ -120,8 +176,9 @@ export const detect = async (source, model, canvasRef, callback = () => {}, onDe
  * @param {tf.GraphModel} model loaded YOLOv8 tensorflow.js model
  * @param {HTMLCanvasElement} canvasRef canvas reference
  * @param {Function} onDetection callback function to handle detected objects statistics
+ * @param {Boolean} trackingEnabled whether to enable object tracking (default: false)
  */
-export const detectVideo = (vidSource, model, canvasRef, onDetection = null) => {
+export const detectVideo = (vidSource, model, canvasRef, onDetection = null, trackingEnabled = false) => {
   /**
    * Function to detect every frame from video
    */
@@ -134,7 +191,7 @@ export const detectVideo = (vidSource, model, canvasRef, onDetection = null) => 
 
     detect(vidSource, model, canvasRef, () => {
       requestAnimationFrame(detectFrame); // get another frame
-    }, onDetection); // Размер входа фиксирован моделью
+    }, onDetection, trackingEnabled); // Передаем параметр трекинга
   };
 
   detectFrame(); // initialize to detect every frame

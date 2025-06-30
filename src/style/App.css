@@ -130,7 +130,16 @@
 
 .btn-container {
   display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.input-group {
+  width: 100%;
+}
+
+.input-group .control-btn {
+  width: 100%;
 }
 
 .control-btn {
@@ -606,6 +615,16 @@
     font-size: 0.7em;
     padding: 1px 6px;
   }
+
+  /* Tracking button mobile styles */
+  .tracking-group {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .tracking-btn.disabled {
+    opacity: 0.6;
+  }
 }
 
 .loading-overlay {
@@ -619,4 +638,76 @@
   justify-content: center;
   align-items: center;
   z-index: 1000;
+}
+
+/* Tracking Controls Styles */
+.tracking-group {
+  border-top: 1px solid var(--border-primary);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.tracking-btn {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-yellow);
+  color: var(--accent-yellow);
+  position: relative;
+}
+
+.tracking-btn:hover:not(.disabled) {
+  border-color: var(--accent-yellow);
+  color: var(--accent-yellow);
+  text-shadow: var(--glow-yellow);
+  box-shadow: 0 0 15px rgba(255, 255, 0, 0.3);
+}
+
+.tracking-btn.active {
+  border-color: var(--accent-yellow);
+  color: var(--accent-yellow);
+  text-shadow: var(--glow-yellow);
+  box-shadow: inset 0 0 15px rgba(255, 255, 0, 0.2), 0 0 20px rgba(255, 255, 0, 0.4);
+  background: rgba(255, 255, 0, 0.1);
+}
+
+.tracking-btn.active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 49%, rgba(255, 255, 0, 0.1) 50%, transparent 51%);
+  animation: tracking-pulse 2s infinite;
+}
+
+.tracking-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--text-muted);
+  border-color: var(--border-accent);
+}
+
+.tracking-btn.disabled:hover {
+  border-color: var(--border-accent);
+  color: var(--text-muted);
+  text-shadow: none;
+  box-shadow: none;
+}
+
+.tracking-status {
+  color: var(--accent-yellow);
+  text-shadow: var(--glow-yellow);
+  font-weight: 700;
+  animation: glow-pulse 2s infinite;
+}
+
+@keyframes tracking-pulse {
+  0%, 100% { 
+    opacity: 0.8; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 1; 
+    transform: scale(1.02);
+  }
 }
